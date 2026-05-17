@@ -275,7 +275,7 @@ class EmprestimoService {
   async excluir(emprestimoId) {
     const emprestimo = await prisma.emprestimo.findUnique({
       where: { id: emprestimoId },
-      include: { cliente: true, pagamentos: true },
+      include: { cliente: true, pagamentos: true, contratos: true },
     });
     if (!emprestimo) throw new Error('Emprestimo nao encontrado');
 
@@ -286,7 +286,16 @@ class EmprestimoService {
       prisma.emprestimo.delete({ where: { id: emprestimoId } }),
     ]);
 
-    logger.warn('Emprestimo excluido', { emprestimoId, clienteId: emprestimo.clienteId, cliente: emprestimo.cliente?.nome });
+    for (const contrato of emprestimo.contratos) {
+      await contratoService.removerContrato(contrato.caminhoArquivo);
+    }
+
+    logger.warn('Emprestimo excluido', {
+      emprestimoId,
+      clienteId: emprestimo.clienteId,
+      cliente: emprestimo.cliente?.nome,
+      contratosRemovidos: emprestimo.contratos.length,
+    });
     return emprestimo;
   }
 

@@ -122,15 +122,34 @@ class ContratoService {
   }
 
   /**
-   * Remove o PDF após o envio (limpeza)
+   * Remove o PDF e pastas vazias da operacao.
    */
   async removerContrato(caminhoPdf) {
     try {
-      if (fs.existsSync(caminhoPdf)) {
-        fs.unlinkSync(caminhoPdf);
+      const caminhoAbsoluto = path.isAbsolute(caminhoPdf)
+        ? caminhoPdf
+        : path.join(ROOT_DIR, caminhoPdf);
+      const pastaContratos = path.resolve(PDF_DIR);
+      const destino = path.resolve(caminhoAbsoluto);
+
+      if (!destino.startsWith(pastaContratos + path.sep)) {
+        logger.warn('Remocao de contrato ignorada fora da pasta contratos', { caminhoPdf });
+        return;
+      }
+
+      if (fs.existsSync(destino)) {
+        fs.unlinkSync(destino);
+        logger.info('Contrato PDF removido', { caminhoPdf: destino });
+      }
+
+      let dir = path.dirname(destino);
+      while (dir.startsWith(pastaContratos + path.sep) && dir !== pastaContratos) {
+        if (!fs.existsSync(dir) || fs.readdirSync(dir).length > 0) break;
+        fs.rmdirSync(dir);
+        dir = path.dirname(dir);
       }
     } catch (error) {
-      logger.warn('Não foi possível remover PDF temporário', { caminhoPdf });
+      logger.warn('Nao foi possivel remover contrato PDF', { caminhoPdf, error: error.message });
     }
   }
 }
