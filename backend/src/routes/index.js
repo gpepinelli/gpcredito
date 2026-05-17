@@ -69,7 +69,6 @@ router.post('/emprestimos/:id/pagar',
   [body('valorPago').isFloat({ min: 0.01 }).withMessage('Valor pago inválido')],
   emprestimoController.confirmarPagamentoManual);
 router.post('/emprestimos/:id/parcelas/:parcelaId/pagar', emprestimoController.confirmarPagamentoParcela);
-router.post('/emprestimos/:id/cobranca-teste', emprestimoController.enviarCobrancaTeste);
 router.post('/operacoes/:numeroOperacao/contrato/aceitar', operacaoController.aceitarContrato);
 router.get('/operacoes/:numeroOperacao', operacaoController.buscarPorNumero);
 

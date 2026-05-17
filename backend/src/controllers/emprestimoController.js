@@ -97,16 +97,6 @@ class EmprestimoController {
       return res.status(500).json({ sucesso: false, mensagem: error.message });
     }
   }
-
-  async enviarCobrancaTeste(req, res) {
-    try {
-      const resultado = await emprestimoService.enviarCobrancaTeste(req.params.id);
-      return res.json({ sucesso: true, ...resultado });
-    } catch (error) {
-      logger.error('Erro ao enviar cobranca teste', { emprestimoId: req.params.id, error: error.message });
-      return res.status(error.message.includes('nao encontrado') ? 404 : 500).json({ sucesso: false, mensagem: error.message });
-    }
-  }
 }
 
 module.exports = new EmprestimoController();

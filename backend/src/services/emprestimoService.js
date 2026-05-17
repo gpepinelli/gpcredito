@@ -272,37 +272,6 @@ class EmprestimoService {
     return pagamento;
   }
 
-  async enviarCobrancaTeste(emprestimoId) {
-    const emprestimo = await prisma.emprestimo.findUnique({
-      where: { id: emprestimoId },
-      include: { cliente: true, parcelas: { orderBy: { numero: 'asc' } } },
-    });
-    if (!emprestimo) throw new Error('Emprestimo nao encontrado');
-
-    const parcela = emprestimo.parcelas.find(p => p.status === 'atrasado' || p.status === 'pendente');
-    const operacaoParaCobranca = parcela
-      ? { ...emprestimo, valorTotal: parcela.valor, dataVencimento: parcela.dataVencimento, parcelas: [parcela] }
-      : emprestimo;
-
-    await whatsapp.enviarCobrancaHoje(emprestimo.cliente, operacaoParaCobranca);
-    const pixEnviado = await whatsapp.enviarPixManual(emprestimo.cliente, operacaoParaCobranca);
-
-    logger.info('Cobranca teste enviada', {
-      emprestimoId,
-      clienteId: emprestimo.clienteId,
-      numeroOperacao: emprestimo.numeroOperacao,
-      parcelaNumero: parcela?.numero || null,
-      valor: parcela?.valor || emprestimo.valorTotal,
-      pixEnviado,
-    });
-
-    return {
-      mensagem: 'Cobranca teste enviada',
-      pixEnviado,
-      parcela: parcela ? { id: parcela.id, numero: parcela.numero, valor: parcela.valor } : null,
-    };
-  }
-
   async listar(filtros = {}) {
     return prisma.emprestimo.findMany({
       where: filtros,
