@@ -716,9 +716,11 @@ async function verCliente(id){
     const cor=c.score>=80?'var(--success)':c.score>=50?'var(--warning)':'var(--danger)';
     const hist=(c.historicoScore||[]).slice(0,5).map(h=>`<div class="score-item"><span class="score-item-motivo">${h.motivo}</span><span class="score-item-val ${h.alteracao>0?'pos':'neg'}">${h.alteracao>0?'+':''}${h.alteracao}</span></div>`).join('')||'<div style="padding:12px;text-align:center;font-size:.82rem;color:var(--text3)">Sem histórico</div>';
     const docs=data.documentos||[],ops=data.operacoes?.todas||[],contratos=data.contratos||[],parcelas=data.parcelas||[];
+    const botaoAceite=(numeroOperacao,status,emprestimoId='')=>status==='AGUARDANDO_ACEITE'?`<button class="btn btn-primary btn-xs" onclick="marcarAceiteContrato('${numeroOperacao}','${c.id}','${emprestimoId}')">Marcar aceite</button>`:'';
+    const botaoAceiteContrato=(ct)=>['GERADO','ENVIADO'].includes(ct.statusContrato)?`<button class="btn btn-primary btn-xs" onclick="marcarAceiteContrato('${ct.numeroOperacao}','${c.id}')">Marcar aceite</button>`:'<span class="td-muted">-</span>';
     const docRows=docs.map(d=>`<tr><td>${d.tipoDocumento}</td><td>${d.nomeOriginal}</td><td>${statusDoc(d.statusValidacao)}</td><td class="td-muted">${fmtData(d.criadoEm)}</td><td><div class="td-actions"><button class="btn btn-ghost btn-xs" onclick="baixarDocumento('${c.id}','${d.id}')">Baixar</button><button class="btn btn-danger btn-xs" onclick="excluirDocumento('${c.id}','${d.id}')">Excluir</button></div></td></tr>`).join('')||'<tr><td colspan="5"><div class="empty-state"><p>Nenhum documento anexado.</p></div></td></tr>';
-    const opRows=ops.map(o=>`<tr><td class="td-mono">${o.numeroOperacao||'—'}</td><td>${fmtMoeda(o.valor)}</td><td>${o.juros}%</td><td>${o.totalParcelas}x</td><td>${statusOperacaoBadge(o.statusOperacao)}</td><td>${fmtMoeda((o.parcelas||[]).filter(p=>p.status!=='pago').reduce((a,p)=>a+p.valor,0))}</td><td>${o.contratos?.[0]?.numeroContrato||'—'}</td><td><button class="btn btn-ghost btn-xs" onclick="abrirParcelasEmprestimo('${o.id}')">Ver detalhes</button></td></tr>`).join('')||'<tr><td colspan="8"><div class="empty-state"><p>Nenhuma operação.</p></div></td></tr>';
-    const contratoRows=contratos.map(ct=>`<tr><td class="td-mono">${ct.numeroContrato}</td><td class="td-mono">${ct.numeroOperacao}</td><td>${statusContratoBadge(ct.statusContrato)}</td><td class="td-muted">${fmtData(ct.criadoEm)}</td><td class="td-muted">${ct.caminhoArquivo}</td></tr>`).join('')||'<tr><td colspan="5"><div class="empty-state"><p>Nenhum contrato vinculado.</p></div></td></tr>';
+    const opRows=ops.map(o=>`<tr><td class="td-mono">${o.numeroOperacao||'—'}</td><td>${fmtMoeda(o.valor)}</td><td>${o.juros}%</td><td>${o.totalParcelas}x</td><td>${statusOperacaoBadge(o.statusOperacao)}</td><td>${fmtMoeda((o.parcelas||[]).filter(p=>p.status!=='pago').reduce((a,p)=>a+p.valor,0))}</td><td>${o.contratos?.[0]?.numeroContrato||'—'}</td><td><div class="td-actions"><button class="btn btn-ghost btn-xs" onclick="abrirParcelasEmprestimo('${o.id}')">Ver detalhes</button>${botaoAceite(o.numeroOperacao,o.statusOperacao,o.id)}</div></td></tr>`).join('')||'<tr><td colspan="8"><div class="empty-state"><p>Nenhuma operação.</p></div></td></tr>';
+    const contratoRows=contratos.map(ct=>`<tr><td class="td-mono">${ct.numeroContrato}</td><td class="td-mono">${ct.numeroOperacao}</td><td>${statusContratoBadge(ct.statusContrato)}</td><td class="td-muted">${fmtData(ct.criadoEm)}</td><td class="td-muted">${ct.caminhoArquivo}</td><td>${botaoAceiteContrato(ct)}</td></tr>`).join('')||'<tr><td colspan="6"><div class="empty-state"><p>Nenhum contrato vinculado.</p></div></td></tr>';
     const parcelaRows=parcelas.map(p=>`<tr><td class="td-mono">${p.numeroOperacao}</td><td>${p.numero}</td><td>${fmtMoeda(p.valor)}</td><td>${fmtMoeda(p.valorJuros)}</td><td>${fmtMoeda(p.saldoDepois)}</td><td>${statusBadge(p.status)}</td><td class="td-muted">${fmtData(p.dataVencimento)}</td></tr>`).join('')||'<tr><td colspan="7"><div class="empty-state"><p>Nenhuma parcela.</p></div></td></tr>';
     document.getElementById('modalClienteConteudo').innerHTML=`
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
@@ -745,7 +747,7 @@ async function verCliente(id){
       <div class="cliente-tab" id="cli-tab-dados"><div style="font-size:.75rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Dados cadastrais</div><div class="preview-box"><div class="preview-row"><span>Nome</span><b>${c.nome}</b></div><div class="preview-row"><span>Telefone</span><b>${c.telefone}</b></div><div class="preview-row"><span>Cadastrado em</span><b>${fmtData(c.criadoEm)}</b></div></div><div style="font-size:.75rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Histórico de score</div><div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">${hist}</div></div>
       <div class="cliente-tab" id="cli-tab-documentos" style="display:none"><div class="filter-row"><button class="btn btn-primary btn-sm" onclick="selecionarDocumento('${c.id}','RG_FRENTE')">Anexar RG frente</button><button class="btn btn-primary btn-sm" onclick="selecionarDocumento('${c.id}','RG_VERSO')">Anexar RG verso</button><button class="btn btn-primary btn-sm" onclick="selecionarDocumento('${c.id}','COMPROVANTE_ENDERECO')">Anexar comprovante</button><input type="file" id="docUploadInput" accept=".jpg,.jpeg,.png,.pdf" style="display:none"/></div><div class="table-wrap"><table><thead><tr><th>Tipo</th><th>Arquivo</th><th>Status</th><th>Enviado</th><th>Ações</th></tr></thead><tbody>${docRows}</tbody></table></div></div>
       <div class="cliente-tab" id="cli-tab-operacoes" style="display:none"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Valor</th><th>Juros</th><th>Parcelas</th><th>Status</th><th>Saldo atual</th><th>Contrato</th><th>Ação</th></tr></thead><tbody>${opRows}</tbody></table></div></div>
-      <div class="cliente-tab" id="cli-tab-contratos" style="display:none"><div class="table-wrap"><table><thead><tr><th>Contrato</th><th>Operação</th><th>Status</th><th>Criado</th><th>Arquivo</th></tr></thead><tbody>${contratoRows}</tbody></table></div></div>
+      <div class="cliente-tab" id="cli-tab-contratos" style="display:none"><div class="table-wrap"><table><thead><tr><th>Contrato</th><th>Operação</th><th>Status</th><th>Criado</th><th>Arquivo</th><th>Ação</th></tr></thead><tbody>${contratoRows}</tbody></table></div></div>
       <div class="cliente-tab" id="cli-tab-parcelas" style="display:none"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>#</th><th>Valor</th><th>Juros</th><th>Saldo depois</th><th>Status</th><th>Vencimento</th></tr></thead><tbody>${parcelaRows}</tbody></table></div></div>`;
   }catch(e){document.getElementById('modalClienteConteudo').innerHTML='<p>Erro de conexão.</p>';}
 }
@@ -843,6 +845,7 @@ async function carregarEmprestimos(){
         <td class="td-muted">${fmtData(e.dataVencimento)}</td>
         <td>${statusBadge(e.status)}</td>
         <td><div class="td-actions">
+          ${e.statusOperacao==='AGUARDANDO_ACEITE'?`<button class="btn btn-primary btn-xs" onclick="event.stopPropagation();marcarAceiteContrato('${e.numeroOperacao}','','${e.id}')">Marcar aceite</button>`:''}
           ${e.status!=='pago'?`<button class="btn btn-success btn-xs" onclick="event.stopPropagation();abrirParcelasEmprestimo('${e.id}')">Parcelas</button>`:''}
           <button class="btn btn-danger btn-xs" onclick="event.stopPropagation();abrirExcluir('emprestimo','${e.id}','empréstimo de ${(e.cliente?.nome||'cliente').replace(/'/g,"\\'")}')">Excluir</button>
         </div></td>
@@ -918,6 +921,7 @@ async function abrirParcelasEmprestimo(id){
   const parcelas=(emp.parcelas||[]).slice().sort((a,b)=>a.numero-b.numero);
   const totalPago=parcelas.filter(p=>p.status==='pago').reduce((acc,p)=>acc+(p.valor||0),0);
   const saldoAberto=parcelas.filter(p=>p.status!=='pago').reduce((acc,p)=>acc+(p.valor||0),0);
+  const aceiteManual=emp.statusOperacao==='AGUARDANDO_ACEITE'?`<div class="filter-row" style="margin:12px 0 14px"><button class="btn btn-primary btn-sm" onclick="marcarAceiteContrato('${emp.numeroOperacao}','','${emp.id}')">Marcar aceite manual</button></div>`:'';
   const linhas=parcelas.length?parcelas.map(p=>`
     <tr>
       <td><span class="badge ${p.status==='pago'?'badge-success':p.status==='atrasado'?'badge-danger':'badge-warning'}">${p.numero}</span></td>
@@ -935,6 +939,7 @@ async function abrirParcelasEmprestimo(id){
     <div class="modal-icon-wrap" style="background:var(--primary-light)"><svg style="stroke:var(--primary)" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
     <div class="modal-title">Parcelas da operação ${emp.numeroOperacao||''}</div>
     <div class="modal-sub">${emp.cliente?.nome||'Cliente'} · Contrato ${emp.numeroContrato||emp.contratos?.[0]?.numeroContrato||'—'} · ${fmtMoeda(emp.valor)} principal · ${emp.juros}% ao mês sobre saldo devedor</div>
+    ${aceiteManual}
     <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
       <div class="kpi" style="padding:12px"><div class="kpi-info"><div class="kpi-label">Total</div><div class="kpi-value" style="font-size:1rem">${fmtMoeda(emp.valorTotal)}</div></div></div>
       <div class="kpi" style="padding:12px"><div class="kpi-info"><div class="kpi-label">Pago</div><div class="kpi-value" style="font-size:1rem">${fmtMoeda(totalPago)}</div></div></div>
@@ -958,6 +963,21 @@ async function pagarParcela(emprestimoId,parcelaId){
       carregarInadimplentes();
       abrirParcelasEmprestimo(emprestimoId);
     }else toast(r.data.mensagem||'Erro ao pagar parcela.','err');
+  }catch(e){toast('Erro de conexão.','err');}
+}
+
+async function marcarAceiteContrato(numeroOperacao,clienteId='',emprestimoId=''){
+  if(!numeroOperacao){toast('Operação sem número interno.','err');return;}
+  if(!confirm(`Marcar aceite manual da operação ${numeroOperacao}?`))return;
+  try{
+    const r=await apiFetch(`/api/operacoes/${encodeURIComponent(numeroOperacao)}/contrato/aceitar`,{method:'POST',body:JSON.stringify({origem:'manual_dashboard'})});
+    if(r.ok){
+      toast('Contrato aceito manualmente.','ok');
+      await carregarEmprestimos();
+      carregarDashboard();
+      if(clienteId)verCliente(clienteId);
+      if(emprestimoId)abrirParcelasEmprestimo(emprestimoId);
+    }else toast(r.data.mensagem||'Erro ao marcar aceite.','err');
   }catch(e){toast('Erro de conexão.','err');}
 }
 
