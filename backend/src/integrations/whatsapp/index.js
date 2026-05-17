@@ -5,6 +5,7 @@ const logger = require('../../utils/logger');
 const fs = require('fs');
 const { PrismaClient } = require('@prisma/client');
 const qrcode = require('qrcode-terminal');
+const pino = require('pino');
 
 const prisma = new PrismaClient();
 const TERMOS_ACEITE = ['DE ACORDO', 'CONCORDO', 'SIM'];
@@ -107,7 +108,7 @@ class BaileysAdapter {
       const { state, saveCreds } = await useMultiFileAuthState(
         process.env.WHATSAPP_SESSION_PATH || './whatsapp-session'
       );
-      this.sock = makeWASocket({ auth: state, printQRInTerminal: false, logger: { level: 'silent' } });
+      this.sock = makeWASocket({ auth: state, printQRInTerminal: false, logger: pino({ level: 'silent' }) });
       this.sock.ev.on('creds.update', saveCreds);
       this.sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
         if (qr) {
@@ -134,7 +135,7 @@ class BaileysAdapter {
         }
       });
     } catch (error) {
-      logger.warn('⚠️  Baileys não instalado. Execute: npm install @whiskeysockets/baileys');
+      logger.warn('⚠️  Falha ao iniciar Baileys', { error: error.message });
     }
   }
 
