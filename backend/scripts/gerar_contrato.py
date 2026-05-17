@@ -33,6 +33,17 @@ def fmt_numero(numero):
         return f"({n[:2]}) {n[2:7]}-{n[7:]}"
     return numero
 
+def valor_ou_traco(valor):
+    return valor if valor else "-"
+
+def status_parcela(status):
+    mapa = {
+        "pendente": "Em aberto",
+        "atrasado": "Em atraso",
+        "pago": "Pago",
+    }
+    return mapa.get(str(status), str(status))
+
 # ─── Paleta ─────────────────────────────────────────────────────────────────
 
 NAVY    = colors.HexColor("#0f172a")
@@ -130,7 +141,7 @@ def gerar(dados: dict):
     # ── Cabeçalho ──────────────────────────────────────────────────────────
     story.append(Paragraph("CONTRATO DE EMPRÉSTIMO PESSOAL", titulo_s))
     story.append(Paragraph(
-        f"Operação {dados.get('numeroOperacao', dados['emprestimoId'][:8].upper())} &nbsp;|&nbsp; "
+        f"Operação: {dados.get('numeroOperacao', dados['emprestimoId'][:8].upper())} &nbsp;|&nbsp; "
         f"Contrato {dados.get('numeroContrato', dados['emprestimoId'][:8].upper())} &nbsp;|&nbsp; "
         f"Emitido em {fmt_data(dados['dataEmprestimo'])}",
         subtitulo_s
@@ -138,37 +149,58 @@ def gerar(dados: dict):
     story.append(HRFlowable(width="100%", thickness=2, color=TEAL, spaceAfter=12))
 
     # ── Partes ─────────────────────────────────────────────────────────────
-    story.append(Paragraph("1. PARTES CONTRATANTES", secao_s))
+    story.append(Paragraph("1. IDENTIFICAÇÃO DAS PARTES", secao_s))
 
     partes_linhas = [
-        ["Campo", "Credor (Prestamista)", "Campo", "Devedor (Contratante)"],
-        ["Nome",     "GPCrédito",               "Nome",      dados["clienteNome"]],
-        ["CNPJ",     "00.000.000/0001-00",       "Telefone",  fmt_numero(dados["clienteTelefone"])],
+        ["Parte", "Dados"],
+        ["CREDOR", "Guilherme dos Santos Pepinelli"],
+        ["CONTRATANTE", dados["clienteNome"]],
+        ["Telefone", fmt_numero(dados["clienteTelefone"])],
+        ["CPF", valor_ou_traco(dados.get("clienteCpf"))],
+        ["Endereço", valor_ou_traco(dados.get("clienteEndereco"))],
     ]
-    col = usable_w / 4
-    story.append(tabela_dados(partes_linhas, [col * 0.6, col * 1.4, col * 0.6, col * 1.4]))
+    story.append(tabela_dados(partes_linhas, [usable_w * 0.3, usable_w * 0.7]))
     story.append(Spacer(1, 4))
 
     # ── Condições financeiras ───────────────────────────────────────────────
     story.append(Paragraph("2. CONDIÇÕES FINANCEIRAS", secao_s))
 
+    parcelas = dados.get("parcelas") or []
+    if len(parcelas) == 1:
+        valor_parcelas = fmt_moeda(parcelas[0]["valor"])
+    else:
+        valor_parcelas = "Conforme tabela de parcelamento"
     fin_linhas = [
         ["Descrição", "Valor"],
         ["Valor Principal Emprestado",  fmt_moeda(dados["valor"])],
         ["Taxa de Juros",               f"{float(dados['juros']):.2f}% ao mês"],
-        ["Valor Total a Pagar",         fmt_moeda(dados["valorTotal"])],
-        ["Data de Concessão",           fmt_data(dados["dataEmprestimo"])],
-        ["Data de Vencimento",          fmt_data(dados["dataVencimento"])],
+        ["Quantidade de Parcelas",      str(dados.get("totalParcelas", len(parcelas) or 1))],
+        ["Valor Total do Contrato",     fmt_moeda(dados["valorTotal"])],
+        ["Valor das Parcelas",          valor_parcelas],
+        ["Data da Concessão",           fmt_data(dados["dataEmprestimo"])],
+        ["Forma de Pagamento",          dados.get("formaPagamento", "Pix")],
     ]
     story.append(tabela_dados(fin_linhas, [usable_w * 0.6, usable_w * 0.4]))
     story.append(Spacer(1, 4))
 
+    story.append(Paragraph("3. PARCELAMENTO", secao_s))
+    parcelas_linhas = [["Parcela", "Vencimento", "Valor", "Status"]]
+    for parcela in parcelas:
+        parcelas_linhas.append([
+            str(parcela.get("numero", "")),
+            fmt_data(parcela["dataVencimento"]),
+            fmt_moeda(parcela["valor"]),
+            status_parcela(parcela.get("status", "pendente")),
+        ])
+    story.append(tabela_dados(parcelas_linhas, [usable_w * 0.18, usable_w * 0.28, usable_w * 0.27, usable_w * 0.27]))
+    story.append(Spacer(1, 4))
+
     # ── Pix ────────────────────────────────────────────────────────────────
     if dados.get("pixCopiaCola"):
-        story.append(Paragraph("3. FORMA DE PAGAMENTO — PIX", secao_s))
+        story.append(Paragraph("4. FORMA DE PAGAMENTO — PIX", secao_s))
         story.append(Paragraph(
             "O pagamento deverá ser realizado via <b>Pix</b>, utilizando o código "
-            "abaixo (copia e cola) até a data de vencimento indicada acima:",
+            "abaixo (copia e cola) até a data de vencimento da parcela correspondente:",
             corpo_s
         ))
         pix_style = ParagraphStyle("Pix",
@@ -179,19 +211,17 @@ def gerar(dados: dict):
         story.append(Spacer(1, 4))
 
     # ── Cláusulas ──────────────────────────────────────────────────────────
-    num_clausulas = 3 if dados.get("pixCopiaCola") else 3
-    proximo = num_clausulas + 1
+    proximo = 5 if dados.get("pixCopiaCola") else 4
 
-    story.append(Paragraph(f"{proximo}. OBRIGAÇÕES E PENALIDADES", secao_s))
+    story.append(Paragraph(f"{proximo}. CLÁUSULAS CONTRATUAIS", secao_s))
     clausulas = [
-        f"<b>{proximo}.1</b> O CONTRATANTE se obriga a efetuar o pagamento do valor total de "
-        f"<b>{fmt_moeda(dados['valorTotal'])}</b> até o dia <b>{fmt_data(dados['dataVencimento'])}</b>.",
-        f"<b>{proximo}.2</b> O não pagamento na data pactuada implicará em redução do score de crédito "
-        "do CONTRATANTE conforme tabela de penalidades vigente.",
-        f"<b>{proximo}.3</b> Pagamentos realizados com antecedência serão recompensados com bônus de "
-        "score conforme política de crédito da plataforma.",
-        f"<b>{proximo}.4</b> Fica eleito o foro da comarca de <b>Maringá/PR</b> para dirimir eventuais "
-        "litígios oriundos deste instrumento.",
+        f"<b>{proximo}.1 Ciência.</b> O CONTRATANTE declara ter lido, compreendido e aceitado integralmente as condições deste contrato, incluindo valores, juros, vencimentos, quantidade de parcelas e penalidades aplicáveis.",
+        f"<b>{proximo}.2 Pagamento.</b> O CONTRATANTE reconhece a dívida descrita neste instrumento e compromete-se a efetuar os pagamentos nas datas acordadas.",
+        f"<b>{proximo}.3 Atraso.</b> O atraso no pagamento poderá implicar aplicação de multa, juros de mora, atualização do débito, bloqueio de novas operações e registro interno de inadimplência.",
+        f"<b>{proximo}.4 Confirmação.</b> O pagamento somente será considerado válido após confirmação pelo credor.",
+        f"<b>{proximo}.5 Aceite digital.</b> O presente contrato poderá ser aceito digitalmente mediante confirmação enviada pelo CONTRATANTE através do WhatsApp cadastrado, utilizando a expressão 'DE ACORDO', produzindo os mesmos efeitos de aceite formal.",
+        f"<b>{proximo}.6 Veracidade.</b> O CONTRATANTE declara que todas as informações e documentos fornecidos são verdadeiros, responsabilizando-se civil e criminalmente por informações falsas.",
+        f"<b>{proximo}.7 Operacional.</b> O CREDOR poderá cancelar ou suspender a operação antes da liberação financeira caso sejam identificadas inconsistências cadastrais, documentais ou operacionais.",
     ]
     for c in clausulas:
         story.append(Paragraph(c, corpo_s))
@@ -207,7 +237,7 @@ def gerar(dados: dict):
     # ── Assinaturas ─────────────────────────────────────────────────────────
     metade = (usable_w - 1.5 * cm) / 2
     assinaturas = Table(
-        [[bloco_assinatura(metade, "Credor — GPCrédito"),
+        [[bloco_assinatura(metade, "Credor — Guilherme dos Santos Pepinelli"),
           bloco_assinatura(metade, f"Devedor — {dados['clienteNome']}")]],
         colWidths=[metade + 0.75 * cm, metade + 0.75 * cm],
     )

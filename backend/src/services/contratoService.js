@@ -17,6 +17,24 @@ const ROOT_DIR = path.join(__dirname, '..', '..', '..');
 const PDF_DIR = path.join(ROOT_DIR, 'contratos');
 const PASTA_EMPRESTIMOS = '01 - Emprestimos';
 
+function montarParcelasContrato(emprestimo) {
+  if (Array.isArray(emprestimo.parcelas) && emprestimo.parcelas.length > 0) {
+    return emprestimo.parcelas.map(parcela => ({
+      numero: parcela.numero,
+      dataVencimento: parcela.dataVencimento,
+      valor: parcela.valor,
+      status: parcela.status,
+    }));
+  }
+
+  return [{
+    numero: 1,
+    dataVencimento: emprestimo.dataVencimento,
+    valor: emprestimo.valorTotal,
+    status: 'pendente',
+  }];
+}
+
 async function executarGeradorContrato(scriptPath, dados) {
   const tentativas = process.env.PYTHON_BIN
     ? [{ comando: process.env.PYTHON_BIN, args: [scriptPath, dados] }]
@@ -67,7 +85,7 @@ class ContratoService {
    * @returns {string} Caminho do arquivo PDF gerado
    */
   async gerarContrato(emprestimo, cliente) {
-    const numeroOperacao = emprestimo.numeroOperacao || `OP-${new Date().getFullYear()}-${emprestimo.id.slice(0, 6)}`;
+    const numeroOperacao = emprestimo.numeroOperacao || `OP-01-${new Date().getFullYear()}-${emprestimo.id.slice(0, 6)}`;
     const numeroContrato = emprestimo.numeroContrato || `CT-${new Date().getFullYear()}-${emprestimo.id.slice(0, 6)}`;
     const caminhoRelativoContrato = this.caminhoRelativoContrato(cliente, numeroOperacao);
     const caminhoSaida = path.join(ROOT_DIR, caminhoRelativoContrato);
@@ -80,11 +98,16 @@ class ContratoService {
       numeroContrato,
       clienteNome: cliente.nome,
       clienteTelefone: cliente.telefone,
+      clienteCpf: cliente.cpf || '',
+      clienteEndereco: cliente.endereco || '',
       valor: emprestimo.valor,
       juros: emprestimo.juros,
       valorTotal: emprestimo.valorTotal,
+      totalParcelas: emprestimo.totalParcelas || 1,
+      formaPagamento: emprestimo.formaPagamento || 'Pix ou outra forma confirmada pelo credor',
       dataEmprestimo: emprestimo.dataEmprestimo || new Date().toISOString(),
       dataVencimento: emprestimo.dataVencimento,
+      parcelas: montarParcelasContrato(emprestimo),
       pixCopiaCola: emprestimo.pixCopiaCola || '',
       caminhoSaida,
     });

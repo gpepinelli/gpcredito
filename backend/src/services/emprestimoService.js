@@ -53,7 +53,7 @@ class EmprestimoService {
     const dataVencimento = totalParcelas === 1
       ? calcularDataVencimento(diasParaVencer)
       : parcelas[parcelas.length - 1].dataVencimento;
-    const numeroOperacao = await gerarNumero('OP', 'numeroOperacao');
+    const numeroOperacao = await gerarNumero('OP-01', 'numeroOperacao');
     const numeroContrato = await gerarNumero('CT', 'numeroContrato');
     const caminhoContrato = contratoService.caminhoRelativoContrato(cliente, numeroOperacao);
 

@@ -63,6 +63,8 @@ Este documento descreve todas as regras de negócio do sistema de empréstimos.
 - O Pix **não é gerado no momento da criação** — é gerado pelo cron job no dia do vencimento.
 - Ao criar a operação, o sistema gera o contrato PDF e tenta enviar pelo WhatsApp ao cliente.
 - A operação nasce com status `AGUARDANDO_ACEITE`.
+- Se o cliente responder pelo WhatsApp cadastrado com `DE ACORDO`, `CONCORDO` ou `SIM`, o contrato é marcado como `ACEITO`.
+- Após o aceite digital, a operação muda para `APROVADO`, indicando que está pronta para liberação financeira pelo credor.
 - O dinheiro só deve ser liberado após o contrato estar `ACEITO`.
 
 ### 3.2 Cálculo do valor total

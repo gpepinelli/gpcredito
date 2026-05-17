@@ -3,6 +3,10 @@
 
 const logger = require('../../utils/logger');
 const fs = require('fs');
+const { PrismaClient } = require('@prisma/client');
+
+const prisma = new PrismaClient();
+const TERMOS_ACEITE = ['DE ACORDO', 'CONCORDO', 'SIM'];
 
 const templates = {
   lembrete: (nome, valor, dataVencimento) =>
@@ -20,8 +24,77 @@ const templates = {
   pixGerado: (nome, valor, copiaCola) =>
     `Olá *${nome}*! 📲\n\nSeu empréstimo de *R$ ${valor}* foi aprovado!\n\nUse o Pix abaixo para confirmar:\n\n\`${copiaCola}\`\n\nCopie o código acima e cole no app do seu banco.`,
   contrato: (nome) =>
-    `📄 *Contrato de Empréstimo*\n\nOlá *${nome}*, segue em anexo o seu contrato. Guarde para sua referência.`,
+    `📄 *Contrato de Empréstimo*\n\nOlá *${nome}*, segue em anexo o seu contrato.\n\nSe estiver de acordo, responda *DE ACORDO* neste WhatsApp para registrar o aceite digital.`,
 };
+
+function apenasDigitos(valor) {
+  return String(valor || '').replace(/\D/g, '');
+}
+
+function extrairTextoMensagem(message) {
+  return message?.conversation
+    || message?.extendedTextMessage?.text
+    || message?.imageMessage?.caption
+    || message?.documentMessage?.caption
+    || '';
+}
+
+async function processarAceiteDigital(telefoneOrigem, texto) {
+  const conteudo = String(texto || '').trim().toUpperCase();
+  if (!TERMOS_ACEITE.includes(conteudo)) return;
+
+  const origem = apenasDigitos(telefoneOrigem).replace(/^55/, '');
+  const clientes = await prisma.cliente.findMany({ select: { id: true, nome: true, telefone: true } });
+  const cliente = clientes.find(c => {
+    const telefoneCliente = apenasDigitos(c.telefone).replace(/^55/, '');
+    return telefoneCliente && (origem.endsWith(telefoneCliente) || telefoneCliente.endsWith(origem));
+  });
+
+  if (!cliente) {
+    logger.warn('Aceite digital recebido, mas cliente nao encontrado', { telefoneOrigem });
+    return;
+  }
+
+  const operacao = await prisma.emprestimo.findFirst({
+    where: {
+      clienteId: cliente.id,
+      statusOperacao: 'AGUARDANDO_ACEITE',
+    },
+    include: {
+      contratos: {
+        where: { statusContrato: { in: ['GERADO', 'ENVIADO'] } },
+        orderBy: { criadoEm: 'desc' },
+        take: 1,
+      },
+    },
+    orderBy: { dataEmprestimo: 'desc' },
+  });
+
+  if (!operacao || !operacao.contratos[0]) {
+    logger.info('Aceite digital recebido sem contrato pendente', { clienteId: cliente.id, telefoneOrigem });
+    return;
+  }
+
+  await prisma.$transaction([
+    prisma.contratoOperacao.update({
+      where: { id: operacao.contratos[0].id },
+      data: { statusContrato: 'ACEITO', aceitoEm: new Date() },
+    }),
+    prisma.emprestimo.update({
+      where: { id: operacao.id },
+      data: { statusOperacao: 'APROVADO' },
+    }),
+  ]);
+
+  logger.info('Contrato aceito digitalmente via WhatsApp', {
+    clienteId: cliente.id,
+    emprestimoId: operacao.id,
+    numeroOperacao: operacao.numeroOperacao,
+    numeroContrato: operacao.contratos[0].numeroContrato,
+    telefoneOrigem,
+    termo: conteudo,
+  });
+}
 
 class BaileysAdapter {
   constructor() { this.sock = null; this.connected = false; this.messageQueue = []; }
@@ -41,6 +114,18 @@ class BaileysAdapter {
           this.connected = false;
           const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
           if (shouldReconnect) setTimeout(() => this.initialize(), 5000);
+        }
+      });
+      this.sock.ev.on('messages.upsert', async ({ messages }) => {
+        for (const msg of messages || []) {
+          if (msg.key?.fromMe) continue;
+          const telefoneOrigem = msg.key?.remoteJid || '';
+          const texto = extrairTextoMensagem(msg.message);
+          try {
+            await processarAceiteDigital(telefoneOrigem, texto);
+          } catch (error) {
+            logger.error('Erro ao processar mensagem recebida no WhatsApp', { error: error.message, telefoneOrigem });
+          }
         }
       });
     } catch (error) {
