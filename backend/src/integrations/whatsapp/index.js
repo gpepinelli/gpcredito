@@ -43,6 +43,47 @@ function extrairTextoMensagem(message) {
     || '';
 }
 
+async function buscarOperacaoPendente(clienteId) {
+  return prisma.emprestimo.findFirst({
+    where: {
+      clienteId,
+      statusOperacao: 'AGUARDANDO_ACEITE',
+    },
+    include: {
+      cliente: { select: { id: true, nome: true, telefone: true } },
+      contratos: {
+        where: { statusContrato: { in: ['GERADO', 'ENVIADO'] } },
+        orderBy: { criadoEm: 'desc' },
+        take: 1,
+      },
+    },
+    orderBy: { dataEmprestimo: 'desc' },
+  });
+}
+
+async function buscarOperacaoPendenteUnica() {
+  const operacoes = await prisma.emprestimo.findMany({
+    where: {
+      statusOperacao: 'AGUARDANDO_ACEITE',
+      contratos: {
+        some: { statusContrato: { in: ['GERADO', 'ENVIADO'] } },
+      },
+    },
+    include: {
+      cliente: { select: { id: true, nome: true, telefone: true } },
+      contratos: {
+        where: { statusContrato: { in: ['GERADO', 'ENVIADO'] } },
+        orderBy: { criadoEm: 'desc' },
+        take: 1,
+      },
+    },
+    orderBy: { dataEmprestimo: 'desc' },
+    take: 2,
+  });
+
+  return operacoes.length === 1 ? operacoes[0] : null;
+}
+
 async function processarAceiteDigital(telefoneOrigem, texto) {
   const conteudo = String(texto || '').trim().toUpperCase();
   if (!TERMOS_ACEITE.includes(conteudo)) return;
@@ -54,28 +95,23 @@ async function processarAceiteDigital(telefoneOrigem, texto) {
     return telefoneCliente && (origem.endsWith(telefoneCliente) || telefoneCliente.endsWith(origem));
   });
 
-  if (!cliente) {
-    logger.warn('Aceite digital recebido, mas cliente nao encontrado', { telefoneOrigem });
-    return;
-  }
-
-  const operacao = await prisma.emprestimo.findFirst({
-    where: {
-      clienteId: cliente.id,
-      statusOperacao: 'AGUARDANDO_ACEITE',
-    },
-    include: {
-      contratos: {
-        where: { statusContrato: { in: ['GERADO', 'ENVIADO'] } },
-        orderBy: { criadoEm: 'desc' },
-        take: 1,
-      },
-    },
-    orderBy: { dataEmprestimo: 'desc' },
-  });
+  const operacao = cliente
+    ? await buscarOperacaoPendente(cliente.id)
+    : await buscarOperacaoPendenteUnica();
 
   if (!operacao || !operacao.contratos[0]) {
-    logger.info('Aceite digital recebido sem contrato pendente', { clienteId: cliente.id, telefoneOrigem });
+    const pendentes = await prisma.emprestimo.count({
+      where: {
+        statusOperacao: 'AGUARDANDO_ACEITE',
+        contratos: { some: { statusContrato: { in: ['GERADO', 'ENVIADO'] } } },
+      },
+    });
+
+    logger.warn('Aceite digital recebido, mas contrato pendente nao foi identificado com seguranca', {
+      clienteId: cliente?.id,
+      telefoneOrigem,
+      pendentes,
+    });
     return;
   }
 
@@ -91,12 +127,14 @@ async function processarAceiteDigital(telefoneOrigem, texto) {
   ]);
 
   logger.info('Contrato aceito digitalmente via WhatsApp', {
-    clienteId: cliente.id,
+    clienteId: operacao.clienteId,
+    clienteNome: operacao.cliente?.nome,
     emprestimoId: operacao.id,
     numeroOperacao: operacao.numeroOperacao,
     numeroContrato: operacao.contratos[0].numeroContrato,
     telefoneOrigem,
     termo: conteudo,
+    identificadoPorTelefone: Boolean(cliente),
   });
 }
 
