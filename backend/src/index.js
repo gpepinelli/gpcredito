@@ -10,6 +10,7 @@ const logger = require('./utils/logger');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const CORS_ORIGIN = process.env.CORS_ORIGIN || true;
 
 function sanitizarBody(body) {
   if (!body || typeof body !== 'object') return body;
@@ -24,7 +25,7 @@ function sanitizarBody(body) {
   );
 }
 
-app.use(cors());
+app.use(cors({ origin: CORS_ORIGIN }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

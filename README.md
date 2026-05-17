@@ -72,6 +72,20 @@ ALLOW_MULTIPLE_ACTIVE_OPERATIONS=false
 
 Com `false`, o sistema bloqueia nova operação quando o cliente já possui uma operação ativa. Para liberar múltiplas operações abertas por cliente, altere para `true`.
 
+Variáveis importantes para integração e deploy:
+
+```bash
+APP_URL=https://seu-dominio-ou-ngrok
+CORS_ORIGIN=https://seu-dominio-ou-ngrok
+MERCADOPAGO_ACCESS_TOKEN=seu_access_token
+```
+
+No Mercado Pago, cadastre o webhook de pagamentos apontando para:
+
+```text
+https://seu-dominio-ou-ngrok/api/webhook/mercadopago
+```
+
 ## Banco de Dados
 
 ```bash

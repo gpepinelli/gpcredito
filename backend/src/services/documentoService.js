@@ -79,7 +79,7 @@ class DocumentoService {
     const caminhoAbsoluto = path.join(ROOT_DIR, documento.caminhoArquivo);
 
     await prisma.documentoCliente.delete({ where: { id: documento.id } });
-    if (fs.existsSync(caminhoAbsoluto)) fs.unlinkSync(caminhoAbsoluto);
+    this.removerArquivoFisico(caminhoAbsoluto);
 
     logger.warn('Documento de cliente excluido', {
       clienteId,
@@ -89,6 +89,32 @@ class DocumentoService {
     });
 
     return documento;
+  }
+
+  removerArquivoFisico(caminhoArquivo) {
+    try {
+      const caminhoAbsoluto = path.isAbsolute(caminhoArquivo)
+        ? caminhoArquivo
+        : path.join(ROOT_DIR, caminhoArquivo);
+      const pastaUploads = path.resolve(UPLOADS_DIR);
+      const destino = path.resolve(caminhoAbsoluto);
+
+      if (!destino.startsWith(pastaUploads + path.sep)) {
+        logger.warn('Remocao de documento ignorada fora da pasta uploads', { caminhoArquivo });
+        return;
+      }
+
+      if (fs.existsSync(destino)) fs.unlinkSync(destino);
+
+      let dir = path.dirname(destino);
+      while (dir.startsWith(pastaUploads + path.sep) && dir !== pastaUploads) {
+        if (!fs.existsSync(dir) || fs.readdirSync(dir).length > 0) break;
+        fs.rmdirSync(dir);
+        dir = path.dirname(dir);
+      }
+    } catch (error) {
+      logger.warn('Nao foi possivel remover documento fisico', { caminhoArquivo, error: error.message });
+    }
   }
 
   caminhoAbsoluto(documento) {

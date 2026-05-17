@@ -17,6 +17,22 @@ function permitirMultiplasOperacoesAtivas() {
   return String(process.env.ALLOW_MULTIPLE_ACTIVE_OPERATIONS || '').toLowerCase() === 'true';
 }
 
+function calcularJurosRecebidoPagamento(pagamento) {
+  if (pagamento.parcela) return Number(pagamento.parcela.valorJuros || 0);
+
+  const emprestimo = pagamento.emprestimo;
+  if (!emprestimo) return 0;
+
+  const valorPago = Number(pagamento.valorPago || 0);
+  const valorPrincipal = Number(emprestimo.valor || 0);
+  const valorTotal = Number(emprestimo.valorTotal || 0);
+  if (valorTotal <= 0 || valorPago <= 0) return 0;
+
+  const proporcaoPrincipal = valorPrincipal / valorTotal;
+  const principalProporcional = valorPago * proporcaoPrincipal;
+  return Math.max(0, valorPago - principalProporcional);
+}
+
 async function gerarNumero(prefixo, campo) {
   const ano = new Date().getFullYear();
   const inicio = `${prefixo}-${ano}-`;
@@ -302,14 +318,19 @@ class EmprestimoService {
   async calcularLucroTotal() {
     const pagamentos = await prisma.pagamento.findMany({
       where: { status: 'confirmado' },
-      include: { emprestimo: true },
+      include: { emprestimo: true, parcela: true },
     });
     const totalRecebido = pagamentos.reduce((acc, p) => acc + p.valorPago, 0);
-    const totalEmprestado = pagamentos.reduce((acc, p) => acc + p.emprestimo.valor, 0);
+    const emprestimosRecebidos = new Map();
+    for (const pagamento of pagamentos) {
+      if (pagamento.emprestimo) emprestimosRecebidos.set(pagamento.emprestimo.id, pagamento.emprestimo.valor);
+    }
+    const totalEmprestado = [...emprestimosRecebidos.values()].reduce((acc, valor) => acc + valor, 0);
+    const lucroJuros = pagamentos.reduce((acc, pagamento) => acc + calcularJurosRecebidoPagamento(pagamento), 0);
     return {
       totalEmprestado: parseFloat(totalEmprestado.toFixed(2)),
       totalRecebido: parseFloat(totalRecebido.toFixed(2)),
-      lucroJuros: parseFloat((totalRecebido - totalEmprestado).toFixed(2)),
+      lucroJuros: parseFloat(lucroJuros.toFixed(2)),
       totalPagamentos: pagamentos.length,
     };
   }
@@ -317,7 +338,7 @@ class EmprestimoService {
   // Métricas mensais para relatório
   async metricasMensais() {
     const emprestimos = await prisma.emprestimo.findMany({
-      include: { pagamentos: { where: { status: 'confirmado' } } },
+      include: { pagamentos: { where: { status: 'confirmado' }, include: { parcela: true } } },
       orderBy: { dataEmprestimo: 'asc' },
     });
 
@@ -329,9 +350,9 @@ class EmprestimoService {
       meses[key].qtd += 1;
       for (const p of emp.pagamentos) {
         meses[key].recebidos += p.valorPago;
+        meses[key].lucro += calcularJurosRecebidoPagamento({ ...p, emprestimo: emp });
         meses[key].qPagos += 1;
       }
-      meses[key].lucro = meses[key].recebidos - meses[key].emprestados;
     }
 
     return Object.values(meses).map(m => ({

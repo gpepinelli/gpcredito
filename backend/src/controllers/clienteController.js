@@ -4,6 +4,7 @@ const { PrismaClient } = require('@prisma/client');
 const { validationResult } = require('express-validator');
 const scoreService = require('../services/scoreService');
 const documentoService = require('../services/documentoService');
+const contratoService = require('../services/contratoService');
 const logger = require('../utils/logger');
 
 const prisma = new PrismaClient();
@@ -187,7 +188,11 @@ class ClienteController {
 
       const cliente = await prisma.cliente.findUnique({
         where: { id },
-        include: { emprestimos: { select: { id: true } } },
+        include: {
+          documentos: true,
+          contratos: true,
+          emprestimos: { select: { id: true } },
+        },
       });
 
       if (!cliente) {
@@ -211,6 +216,14 @@ class ClienteController {
         nome: cliente.nome,
         emprestimosRemovidos: emprestimoIds.length,
       });
+
+      for (const documento of cliente.documentos) {
+        documentoService.removerArquivoFisico(documento.caminhoArquivo);
+      }
+
+      for (const contrato of cliente.contratos) {
+        await contratoService.removerContrato(contrato.caminhoArquivo);
+      }
 
       return res.json({
         sucesso: true,

@@ -3,6 +3,12 @@
 
 const logger = require('../../utils/logger');
 
+function montarWebhookUrl() {
+  const appUrl = String(process.env.APP_URL || '').replace(/\/+$/, '');
+  if (!appUrl) return undefined;
+  return `${appUrl}/api/webhook/mercadopago`;
+}
+
 class MercadoPagoService {
   constructor() {
     this.accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
@@ -39,7 +45,7 @@ class MercadoPagoService {
             number: cliente.cpf || '00000000000',
           },
         },
-        notification_url: `${process.env.APP_URL}/webhook/mercadopago`,
+        notification_url: montarWebhookUrl(),
         external_reference: emprestimo.id, // Para identificar no webhook
       };
 
