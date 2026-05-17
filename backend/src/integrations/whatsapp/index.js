@@ -27,6 +27,8 @@ const templates = {
     `Olá *${nome}*! 📲\n\nSeu empréstimo de *R$ ${valor}* foi aprovado!\n\nUse o Pix abaixo para confirmar:\n\n\`${copiaCola}\`\n\nCopie o código acima e cole no app do seu banco.`,
   contrato: (nome) =>
     `📄 *Contrato de Empréstimo*\n\nOlá *${nome}*, segue em anexo o seu contrato.\n\nSe estiver de acordo, responda *DE ACORDO* neste WhatsApp para registrar o aceite digital.`,
+  contratoAviso: (nome) =>
+    `Olá *${nome}*, estou enviando agora o contrato de empréstimo em PDF.\n\nApós ler, responda *DE ACORDO* para registrar o aceite digital.`,
 };
 
 function apenasDigitos(valor) {
@@ -141,7 +143,9 @@ class BaileysAdapter {
 
   _jid(telefone) {
     const n = telefone.replace(/\D/g, '');
-    return n.includes('@') ? n : `55${n}@s.whatsapp.net`;
+    if (telefone.includes('@')) return telefone;
+    const numero = n.startsWith('55') ? n : `55${n}`;
+    return `${numero}@s.whatsapp.net`;
   }
 
   async sendMessage(telefone, mensagem) {
@@ -155,8 +159,8 @@ class BaileysAdapter {
     const jid = this._jid(telefone);
     if (!this.connected) { this.messageQueue.push({ type: 'document', jid, caminhoPdf, nomeArquivo, legenda }); return false; }
     try {
-      await this.sock.sendMessage(jid, { document: fs.readFileSync(caminhoPdf), fileName: nomeArquivo, mimetype: 'application/pdf', caption: legenda });
-      logger.info('📄 PDF enviado via WhatsApp', { telefone, nomeArquivo });
+      const resultado = await this.sock.sendMessage(jid, { document: fs.readFileSync(caminhoPdf), fileName: nomeArquivo, mimetype: 'application/pdf', caption: legenda });
+      logger.info('📄 PDF enviado via WhatsApp', { telefone, jid, nomeArquivo, messageId: resultado?.key?.id });
       return true;
     } catch (e) { logger.error('Erro WA PDF', { e: e.message }); return false; }
   }
@@ -250,6 +254,7 @@ class WhatsAppService {
 
   async enviarContrato(cliente, caminhoPdf) {
     const nomeArquivo = `Contrato_Emprestimo_${cliente.nome.replace(/\s+/g, '_')}.pdf`;
+    await this.adapter.sendMessage(cliente.telefone, templates.contratoAviso(cliente.nome));
     return this.adapter.sendDocument(cliente.telefone, caminhoPdf, nomeArquivo, templates.contrato(cliente.nome));
   }
 }
