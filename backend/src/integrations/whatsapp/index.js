@@ -4,6 +4,7 @@
 const logger = require('../../utils/logger');
 const fs = require('fs');
 const { PrismaClient } = require('@prisma/client');
+const qrcode = require('qrcode-terminal');
 
 const prisma = new PrismaClient();
 const TERMOS_ACEITE = ['DE ACORDO', 'CONCORDO', 'SIM'];
@@ -106,9 +107,13 @@ class BaileysAdapter {
       const { state, saveCreds } = await useMultiFileAuthState(
         process.env.WHATSAPP_SESSION_PATH || './whatsapp-session'
       );
-      this.sock = makeWASocket({ auth: state, printQRInTerminal: true, logger: { level: 'silent' } });
+      this.sock = makeWASocket({ auth: state, printQRInTerminal: false, logger: { level: 'silent' } });
       this.sock.ev.on('creds.update', saveCreds);
-      this.sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
+      this.sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
+        if (qr) {
+          logger.info('Escaneie o QR Code no WhatsApp para conectar.');
+          qrcode.generate(qr, { small: true });
+        }
         if (connection === 'open') { this.connected = true; logger.info('✅ WhatsApp conectado!'); this._processQueue(); }
         else if (connection === 'close') {
           this.connected = false;
