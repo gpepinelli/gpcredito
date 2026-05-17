@@ -15,6 +15,7 @@ const ROOT_DIR = path.join(__dirname, '..', '..', '..');
 
 // Pasta onde os PDFs serão salvos temporariamente
 const PDF_DIR = path.join(ROOT_DIR, 'contratos');
+const PASTA_EMPRESTIMOS = '01 - Emprestimos';
 
 async function executarGeradorContrato(scriptPath, dados) {
   const tentativas = process.env.PYTHON_BIN
@@ -44,6 +45,21 @@ class ContratoService {
     }
   }
 
+  pastaCliente(cliente) {
+    const nome = String(cliente?.nome || 'cliente')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .replace(/_+/g, '_');
+
+    return nome || 'cliente';
+  }
+
+  caminhoRelativoContrato(cliente, numeroOperacao) {
+    return path.join('contratos', this.pastaCliente(cliente), PASTA_EMPRESTIMOS, numeroOperacao, 'contrato.pdf').replace(/\\/g, '/');
+  }
+
   /**
    * Gera o PDF do contrato de empréstimo
    * @param {Object} emprestimo - Dados do empréstimo
@@ -53,9 +69,9 @@ class ContratoService {
   async gerarContrato(emprestimo, cliente) {
     const numeroOperacao = emprestimo.numeroOperacao || `OP-${new Date().getFullYear()}-${emprestimo.id.slice(0, 6)}`;
     const numeroContrato = emprestimo.numeroContrato || `CT-${new Date().getFullYear()}-${emprestimo.id.slice(0, 6)}`;
-    const dirOperacao = path.join(PDF_DIR, cliente.id, numeroOperacao);
-    fs.mkdirSync(dirOperacao, { recursive: true });
-    const caminhoSaida = path.join(dirOperacao, 'contrato.pdf');
+    const caminhoRelativoContrato = this.caminhoRelativoContrato(cliente, numeroOperacao);
+    const caminhoSaida = path.join(ROOT_DIR, caminhoRelativoContrato);
+    fs.mkdirSync(path.dirname(caminhoSaida), { recursive: true });
 
     // Monta os dados como JSON para passar ao script Python
     const dados = JSON.stringify({

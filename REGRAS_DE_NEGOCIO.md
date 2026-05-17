@@ -241,7 +241,8 @@ As ofertas de renovação são verificadas diariamente às **09h30**.
 - Requer **Python 3 + ReportLab** instalados no servidor.
 - O PDF é gerado pelo script `backend/scripts/gerar_contrato.py`.
 - Após gerado, o PDF é enviado ao cliente via WhatsApp.
-- Arquivos PDF temporários ficam em `contratos/` e podem ser removidos após envio.
+- Os contratos ficam em `contratos/{Nome_Cliente}/01 - Emprestimos/{numeroOperacao}/contrato.pdf`.
+- Para V2, a pasta do cliente poderá receber novas categorias numeradas para compra de moto, carro e celular.
 
 ---
 

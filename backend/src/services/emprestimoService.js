@@ -55,7 +55,7 @@ class EmprestimoService {
       : parcelas[parcelas.length - 1].dataVencimento;
     const numeroOperacao = await gerarNumero('OP', 'numeroOperacao');
     const numeroContrato = await gerarNumero('CT', 'numeroContrato');
-    const caminhoContrato = `contratos/${clienteId}/${numeroOperacao}/contrato.pdf`;
+    const caminhoContrato = contratoService.caminhoRelativoContrato(cliente, numeroOperacao);
 
     const emprestimo = await prisma.emprestimo.create({
       data: {

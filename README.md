@@ -84,7 +84,7 @@ Os scripts já apontam para `backend/prisma/schema.prisma`.
 ## Operações, Contratos e Documentos
 
 - Cada novo empréstimo recebe um número interno único no formato `OP-ANO-SEQUENCIAL`, como `OP-2026-000001`.
-- Cada operação pode ter contrato vinculado, salvo em `contratos/{clienteId}/{numeroOperacao}/contrato.pdf`.
+- Cada operação pode ter contrato vinculado, salvo em `contratos/{Nome_Cliente}/01 - Emprestimos/{numeroOperacao}/contrato.pdf`.
 - Documentos de cliente são opcionais e ficam em `uploads/clientes/{clienteId}/documentos/`.
 - O banco salva apenas metadados e caminho do arquivo; documentos não são salvos em base64.
 - Tipos aceitos para upload: JPG, PNG e PDF, com limite de 5MB por arquivo.
