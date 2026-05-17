@@ -18,6 +18,8 @@ model Cliente {
 
   emprestimos    Emprestimo[]
   historicoScore HistoricoScore[]
+  documentos     DocumentoCliente[]
+  contratos      ContratoOperacao[]
 
   @@map("clientes")
 }
@@ -25,12 +27,15 @@ model Cliente {
 model Emprestimo {
   id              String   @id @default(uuid())
   clienteId       String   @map("cliente_id")
+  numeroOperacao  String   @unique @map("numero_operacao")
+  numeroContrato  String?  @unique @map("numero_contrato")
   valor           Float
   juros           Float
   valorTotal      Float    @map("valor_total")
   dataEmprestimo  DateTime @default(now()) @map("data_emprestimo")
   dataVencimento  DateTime @map("data_vencimento")
   status          StatusEmprestimo @default(pendente)
+  statusOperacao  StatusOperacao @default(EM_DIA) @map("status_operacao")
   // Parcelamento
   totalParcelas   Int      @default(1) @map("total_parcelas")
   pixQrCode       String?  @map("pix_qr_code")
@@ -40,8 +45,48 @@ model Emprestimo {
   cliente   Cliente    @relation(fields: [clienteId], references: [id])
   pagamentos Pagamento[]
   parcelas   Parcela[]
+  contratos  ContratoOperacao[]
 
   @@map("emprestimos")
+}
+
+model DocumentoCliente {
+  id              String   @id @default(uuid())
+  clienteId       String   @map("cliente_id")
+  tipoDocumento   TipoDocumentoCliente @map("tipo_documento")
+  nomeOriginal    String   @map("nome_original")
+  nomeArquivo     String   @map("nome_arquivo")
+  caminhoArquivo  String   @map("caminho_arquivo")
+  mimeType        String   @map("mime_type")
+  tamanhoBytes    Int      @map("tamanho_bytes")
+  statusValidacao StatusValidacaoDocumento @default(PENDENTE) @map("status_validacao")
+  observacao      String?
+  criadoEm        DateTime @default(now()) @map("criado_em")
+  atualizadoEm    DateTime @updatedAt @map("atualizado_em")
+
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+
+  @@map("documentos_cliente")
+}
+
+model ContratoOperacao {
+  id              String   @id @default(uuid())
+  numeroContrato  String   @unique @map("numero_contrato")
+  numeroOperacao  String   @map("numero_operacao")
+  clienteId       String   @map("cliente_id")
+  emprestimoId    String?  @map("emprestimo_id")
+  caminhoArquivo  String   @map("caminho_arquivo")
+  hashSha256      String   @default("") @map("hash_sha256")
+  statusContrato  StatusContrato @default(GERADO) @map("status_contrato")
+  criadoEm        DateTime @default(now()) @map("criado_em")
+  aceitoEm        DateTime? @map("aceito_em")
+
+  cliente    Cliente @relation(fields: [clienteId], references: [id])
+  emprestimo Emprestimo? @relation(fields: [emprestimoId], references: [id])
+
+  @@index([clienteId])
+  @@index([numeroOperacao])
+  @@map("contratos_operacao")
 }
 
 // Parcela individual de um empréstimo parcelado
@@ -115,4 +160,34 @@ enum StatusParcela {
   pendente
   pago
   atrasado
+}
+
+enum StatusOperacao {
+  AGUARDANDO_ACEITE
+  APROVADO
+  LIBERADO
+  EM_DIA
+  ATRASADO
+  QUITADO
+  CANCELADO
+  RECUSADO
+}
+
+enum StatusContrato {
+  GERADO
+  ENVIADO
+  ACEITO
+  CANCELADO
+}
+
+enum TipoDocumentoCliente {
+  RG_FRENTE
+  RG_VERSO
+  COMPROVANTE_ENDERECO
+}
+
+enum StatusValidacaoDocumento {
+  PENDENTE
+  APROVADO
+  RECUSADO
 }

@@ -130,7 +130,8 @@ def gerar(dados: dict):
     # ── Cabeçalho ──────────────────────────────────────────────────────────
     story.append(Paragraph("CONTRATO DE EMPRÉSTIMO PESSOAL", titulo_s))
     story.append(Paragraph(
-        f"Nº {dados['emprestimoId'][:8].upper()} &nbsp;|&nbsp; "
+        f"Operação {dados.get('numeroOperacao', dados['emprestimoId'][:8].upper())} &nbsp;|&nbsp; "
+        f"Contrato {dados.get('numeroContrato', dados['emprestimoId'][:8].upper())} &nbsp;|&nbsp; "
         f"Emitido em {fmt_data(dados['dataEmprestimo'])}",
         subtitulo_s
     ))
@@ -141,7 +142,7 @@ def gerar(dados: dict):
 
     partes_linhas = [
         ["Campo", "Credor (Prestamista)", "Campo", "Devedor (Contratante)"],
-        ["Nome",     "Minha Fintech Ltda.",     "Nome",      dados["clienteNome"]],
+        ["Nome",     "GPCrédito",               "Nome",      dados["clienteNome"]],
         ["CNPJ",     "00.000.000/0001-00",       "Telefone",  fmt_numero(dados["clienteTelefone"])],
     ]
     col = usable_w / 4
@@ -154,7 +155,7 @@ def gerar(dados: dict):
     fin_linhas = [
         ["Descrição", "Valor"],
         ["Valor Principal Emprestado",  fmt_moeda(dados["valor"])],
-        ["Taxa de Juros (simples)",     f"{float(dados['juros']):.2f}%"],
+        ["Taxa de Juros",               f"{float(dados['juros']):.2f}% ao mês"],
         ["Valor Total a Pagar",         fmt_moeda(dados["valorTotal"])],
         ["Data de Concessão",           fmt_data(dados["dataEmprestimo"])],
         ["Data de Vencimento",          fmt_data(dados["dataVencimento"])],
@@ -206,7 +207,7 @@ def gerar(dados: dict):
     # ── Assinaturas ─────────────────────────────────────────────────────────
     metade = (usable_w - 1.5 * cm) / 2
     assinaturas = Table(
-        [[bloco_assinatura(metade, "Credor — Minha Fintech Ltda."),
+        [[bloco_assinatura(metade, "Credor — GPCrédito"),
           bloco_assinatura(metade, f"Devedor — {dados['clienteNome']}")]],
         colWidths=[metade + 0.75 * cm, metade + 0.75 * cm],
     )
@@ -218,7 +219,7 @@ def gerar(dados: dict):
     story.append(Spacer(1, 4))
     story.append(Paragraph(
         f"Documento gerado automaticamente pelo Sistema de Gestão de Empréstimos &nbsp;|&nbsp; "
-        f"ID: {dados['emprestimoId']}",
+        f"Operação: {dados.get('numeroOperacao', dados['emprestimoId'])} &nbsp;|&nbsp; Contrato: {dados.get('numeroContrato', '')}",
         rodape_s
     ))
 

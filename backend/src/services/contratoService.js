@@ -4,10 +4,13 @@
 const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const { PrismaClient } = require('@prisma/client');
 const { promisify } = require('util');
 const logger = require('../utils/logger');
 
 const execFileAsync = promisify(execFile);
+const prisma = new PrismaClient();
 const ROOT_DIR = path.join(__dirname, '..', '..', '..');
 
 // Pasta onde os PDFs serão salvos temporariamente
@@ -27,12 +30,17 @@ class ContratoService {
    * @returns {string} Caminho do arquivo PDF gerado
    */
   async gerarContrato(emprestimo, cliente) {
-    const nomeArquivo = `contrato_${emprestimo.id}.pdf`;
-    const caminhoSaida = path.join(PDF_DIR, nomeArquivo);
+    const numeroOperacao = emprestimo.numeroOperacao || `OP-${new Date().getFullYear()}-${emprestimo.id.slice(0, 6)}`;
+    const numeroContrato = emprestimo.numeroContrato || `CT-${new Date().getFullYear()}-${emprestimo.id.slice(0, 6)}`;
+    const dirOperacao = path.join(PDF_DIR, cliente.id, numeroOperacao);
+    fs.mkdirSync(dirOperacao, { recursive: true });
+    const caminhoSaida = path.join(dirOperacao, 'contrato.pdf');
 
     // Monta os dados como JSON para passar ao script Python
     const dados = JSON.stringify({
       emprestimoId: emprestimo.id,
+      numeroOperacao,
+      numeroContrato,
       clienteNome: cliente.nome,
       clienteTelefone: cliente.telefone,
       valor: emprestimo.valor,
@@ -49,7 +57,26 @@ class ContratoService {
 
     try {
       await execFileAsync('python3', [scriptPath, dados]);
-      logger.info('📄 Contrato PDF gerado', { emprestimoId: emprestimo.id, caminhoSaida });
+      const hashSha256 = crypto.createHash('sha256').update(fs.readFileSync(caminhoSaida)).digest('hex');
+      const caminhoRelativo = path.relative(ROOT_DIR, caminhoSaida).replace(/\\/g, '/');
+      await prisma.contratoOperacao.upsert({
+        where: { numeroContrato },
+        update: {
+          caminhoArquivo: caminhoRelativo,
+          hashSha256,
+          statusContrato: 'GERADO',
+        },
+        create: {
+          numeroContrato,
+          numeroOperacao,
+          clienteId: cliente.id,
+          emprestimoId: emprestimo.id,
+          caminhoArquivo: caminhoRelativo,
+          hashSha256,
+          statusContrato: 'GERADO',
+        },
+      });
+      logger.info('📄 Contrato PDF gerado', { emprestimoId: emprestimo.id, numeroOperacao, numeroContrato, caminhoSaida, hashSha256 });
       return caminhoSaida;
     } catch (error) {
       logger.error('Erro ao gerar contrato PDF', { error: error.message, stderr: error.stderr });

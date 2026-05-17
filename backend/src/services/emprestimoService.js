@@ -8,6 +8,24 @@ const mercadopago = require('../integrations/mercadopago');
 const logger = require('../utils/logger');
 
 const prisma = new PrismaClient();
+const STATUS_OPERACAO_ABERTA = ['AGUARDANDO_ACEITE', 'APROVADO', 'LIBERADO', 'EM_DIA', 'ATRASADO'];
+
+function permitirMultiplasOperacoesAtivas() {
+  return String(process.env.ALLOW_MULTIPLE_ACTIVE_OPERATIONS || '').toLowerCase() === 'true';
+}
+
+async function gerarNumero(prefixo, campo) {
+  const ano = new Date().getFullYear();
+  const inicio = `${prefixo}-${ano}-`;
+  const ultima = await prisma.emprestimo.findFirst({
+    where: { [campo]: { startsWith: inicio } },
+    orderBy: { [campo]: 'desc' },
+    select: { [campo]: true },
+  });
+  const valorAtual = ultima?.[campo] || '';
+  const sequencial = Number(valorAtual.split('-').pop() || 0) + 1;
+  return `${inicio}${String(sequencial).padStart(6, '0')}`;
+}
 
 class EmprestimoService {
 
@@ -18,10 +36,12 @@ class EmprestimoService {
     const avaliacao = scoreService.avaliarCredito(cliente.score);
     if (!avaliacao.permitido) throw new Error(avaliacao.mensagem);
 
-    const emprestimoAtivo = await prisma.emprestimo.findFirst({
-      where: { clienteId, status: { in: ['pendente', 'atrasado'] } },
-    });
-    if (emprestimoAtivo) throw new Error('Cliente já possui empréstimo ativo. Quite antes de pegar outro.');
+    if (!permitirMultiplasOperacoesAtivas()) {
+      const emprestimoAtivo = await prisma.emprestimo.findFirst({
+        where: { clienteId, statusOperacao: { in: STATUS_OPERACAO_ABERTA } },
+      });
+      if (emprestimoAtivo) throw new Error('Cliente já possui operação ativa. Quite ou finalize antes de criar outra.');
+    }
 
     // Para empréstimo de parcela única, dataVencimento = diasParaVencer
     // Para parcelado, dataVencimento = vencimento da última parcela
@@ -30,16 +50,22 @@ class EmprestimoService {
     const dataVencimento = totalParcelas === 1
       ? calcularDataVencimento(diasParaVencer)
       : parcelas[parcelas.length - 1].dataVencimento;
+    const numeroOperacao = await gerarNumero('OP', 'numeroOperacao');
+    const numeroContrato = await gerarNumero('CT', 'numeroContrato');
+    const caminhoContrato = `contratos/${clienteId}/${numeroOperacao}/contrato.pdf`;
 
     const emprestimo = await prisma.emprestimo.create({
       data: {
         clienteId,
+        numeroOperacao,
+        numeroContrato,
         valor,
         juros,
         valorTotal,
         dataVencimento,
         totalParcelas,
         status: 'pendente',
+        statusOperacao: 'EM_DIA',
         parcelas: totalParcelas > 1 ? {
           create: parcelas.map(p => ({
             numero: p.numero,
@@ -52,11 +78,21 @@ class EmprestimoService {
             status: 'pendente',
           })),
         } : undefined,
+        contratos: {
+          create: {
+            numeroContrato,
+            numeroOperacao,
+            clienteId,
+            caminhoArquivo: caminhoContrato,
+            hashSha256: '',
+            statusContrato: 'GERADO',
+          },
+        },
       },
-      include: { parcelas: true },
+      include: { parcelas: true, contratos: true },
     });
 
-    logger.info('💰 Empréstimo criado', { emprestimoId: emprestimo.id, clienteId, valor, valorTotal, totalParcelas, dataVencimento });
+    logger.info('💰 Operação financeira criada', { emprestimoId: emprestimo.id, numeroOperacao, numeroContrato, clienteId, valor, valorTotal, totalParcelas, dataVencimento });
     return { emprestimo, avaliacao };
   }
 
@@ -131,7 +167,7 @@ class EmprestimoService {
 
       await tx.emprestimo.update({
         where: { id: emprestimoId },
-        data: { status: novoStatus },
+        data: { status: novoStatus, statusOperacao: novoStatus === 'pago' ? 'QUITADO' : 'EM_DIA' },
       });
 
       return pagamentoCriado;
@@ -187,7 +223,7 @@ class EmprestimoService {
 
       await tx.emprestimo.update({
         where: { id: emprestimoId },
-        data: { status: novoStatus },
+        data: { status: novoStatus, statusOperacao: novoStatus === 'pago' ? 'QUITADO' : 'EM_DIA' },
       });
 
       return pagamentoCriado;
@@ -208,7 +244,7 @@ class EmprestimoService {
   async listar(filtros = {}) {
     return prisma.emprestimo.findMany({
       where: filtros,
-      include: { cliente: true, pagamentos: true, parcelas: { orderBy: { numero: 'asc' } } },
+      include: { cliente: true, pagamentos: true, contratos: true, parcelas: { orderBy: { numero: 'asc' } } },
       orderBy: { dataVencimento: 'asc' },
     });
   }
@@ -216,7 +252,7 @@ class EmprestimoService {
   async listarInadimplentes() {
     return prisma.emprestimo.findMany({
       where: { status: 'atrasado' },
-      include: { cliente: true, parcelas: true },
+      include: { cliente: true, contratos: true, parcelas: true },
       orderBy: { dataVencimento: 'asc' },
     });
   }
@@ -230,6 +266,7 @@ class EmprestimoService {
 
     await prisma.$transaction([
       prisma.pagamento.deleteMany({ where: { emprestimoId } }),
+      prisma.contratoOperacao.deleteMany({ where: { emprestimoId } }),
       prisma.parcela.deleteMany({ where: { emprestimoId } }),
       prisma.emprestimo.delete({ where: { id: emprestimoId } }),
     ]);
@@ -284,7 +321,7 @@ class EmprestimoService {
   // Dados completos para exportação Excel
   async dadosParaExport() {
     const [emprestimos, clientes, pagamentos] = await Promise.all([
-      prisma.emprestimo.findMany({ include: { cliente: true, pagamentos: true, parcelas: { orderBy: { numero: 'asc' } } }, orderBy: { dataEmprestimo: 'desc' } }),
+      prisma.emprestimo.findMany({ include: { cliente: true, pagamentos: true, contratos: true, parcelas: { orderBy: { numero: 'asc' } } }, orderBy: { dataEmprestimo: 'desc' } }),
       prisma.cliente.findMany({ include: { emprestimos: true }, orderBy: { criadoEm: 'desc' } }),
       prisma.pagamento.findMany({ include: { emprestimo: { include: { cliente: true } } }, orderBy: { dataPagamento: 'desc' } }),
     ]);

@@ -58,7 +58,7 @@ async function verificarVencimentos() {
         if (emp.status !== 'atrasado') {
           await prisma.emprestimo.update({
             where: { id: emp.id },
-            data: { status: 'atrasado' },
+            data: { status: 'atrasado', statusOperacao: 'ATRASADO' },
           });
           marcadosAtrasados++;
         }

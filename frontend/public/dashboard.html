@@ -347,7 +347,7 @@ tbody tr:hover td{background:var(--primary-light)}
           <select class="filter-select" id="filtroStatusEmp" onchange="carregarEmprestimos()"><option value="">Todos os status</option><option value="pendente">Pendente</option><option value="pago">Pago</option><option value="atrasado">Atrasado</option></select>
           <button class="btn btn-ghost btn-sm" onclick="carregarEmprestimos()"><svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Atualizar</button>
         </div>
-        <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Valor</th><th>Juros/mês</th><th>Total</th><th>Parcelas</th><th>Vencimento</th><th>Status</th><th>Ações</th></tr></thead><tbody id="tbodyEmprestimos"><tr><td colspan="8"><div class="loading"><div class="spinner"></div> Carregando...</div></td></tr></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Operação</th><th>Cliente</th><th>Valor</th><th>Juros/mês</th><th>Total</th><th>Parcelas</th><th>Vencimento</th><th>Status</th><th>Ações</th></tr></thead><tbody id="tbodyEmprestimos"><tr><td colspan="9"><div class="loading"><div class="spinner"></div> Carregando...</div></td></tr></tbody></table></div>
       </div>
 
       <!-- ═══════════ INADIMPLENTES ═══════════ -->
@@ -563,6 +563,13 @@ async function apiFetch(path,opts={}){
   return {ok:r.ok,status:r.status,data:d};
 }
 
+async function apiUpload(path,formData){
+  const r=await fetch(`${API}${path}`,{method:'POST',headers:{'Authorization':`Bearer ${token}`},body:formData});
+  const d=await r.json();
+  if(r.status===401){toast('Sessão expirada. Faça login novamente.','err');sair();throw new Error('401');}
+  return {ok:r.ok,status:r.status,data:d};
+}
+
 // ═══════════════════════════════════════
 // AUTH
 // ═══════════════════════════════════════
@@ -703,31 +710,112 @@ async function verCliente(id){
   abrirModal('modalCliente');
   document.getElementById('modalClienteConteudo').innerHTML='<div class="loading"><div class="spinner"></div> Carregando...</div>';
   try{
-    const {ok,data}=await apiFetch(`/api/clientes/${id}`);
+    const {ok,data}=await apiFetch(`/api/clientes/${id}/historico`);
     if(!ok){document.getElementById('modalClienteConteudo').innerHTML='<p>Erro ao carregar.</p>';return;}
-    const c=data.cliente,av=data.avaliacaoCredito;
+    const c=data.cliente,resumo=data.resumo||{};
     const cor=c.score>=80?'var(--success)':c.score>=50?'var(--warning)':'var(--danger)';
     const hist=(c.historicoScore||[]).slice(0,5).map(h=>`<div class="score-item"><span class="score-item-motivo">${h.motivo}</span><span class="score-item-val ${h.alteracao>0?'pos':'neg'}">${h.alteracao>0?'+':''}${h.alteracao}</span></div>`).join('')||'<div style="padding:12px;text-align:center;font-size:.82rem;color:var(--text3)">Sem histórico</div>';
+    const docs=data.documentos||[],ops=data.operacoes?.todas||[],contratos=data.contratos||[],parcelas=data.parcelas||[];
+    const docRows=docs.map(d=>`<tr><td>${d.tipoDocumento}</td><td>${d.nomeOriginal}</td><td>${statusDoc(d.statusValidacao)}</td><td class="td-muted">${fmtData(d.criadoEm)}</td><td><div class="td-actions"><button class="btn btn-ghost btn-xs" onclick="baixarDocumento('${c.id}','${d.id}')">Baixar</button><button class="btn btn-danger btn-xs" onclick="excluirDocumento('${c.id}','${d.id}')">Excluir</button></div></td></tr>`).join('')||'<tr><td colspan="5"><div class="empty-state"><p>Nenhum documento anexado.</p></div></td></tr>';
+    const opRows=ops.map(o=>`<tr><td class="td-mono">${o.numeroOperacao||'—'}</td><td>${fmtMoeda(o.valor)}</td><td>${o.juros}%</td><td>${o.totalParcelas}x</td><td>${statusOperacaoBadge(o.statusOperacao)}</td><td>${fmtMoeda((o.parcelas||[]).filter(p=>p.status!=='pago').reduce((a,p)=>a+p.valor,0))}</td><td>${o.contratos?.[0]?.numeroContrato||'—'}</td><td><button class="btn btn-ghost btn-xs" onclick="abrirParcelasEmprestimo('${o.id}')">Ver detalhes</button></td></tr>`).join('')||'<tr><td colspan="8"><div class="empty-state"><p>Nenhuma operação.</p></div></td></tr>';
+    const contratoRows=contratos.map(ct=>`<tr><td class="td-mono">${ct.numeroContrato}</td><td class="td-mono">${ct.numeroOperacao}</td><td>${statusContratoBadge(ct.statusContrato)}</td><td class="td-muted">${fmtData(ct.criadoEm)}</td><td class="td-muted">${ct.caminhoArquivo}</td></tr>`).join('')||'<tr><td colspan="5"><div class="empty-state"><p>Nenhum contrato vinculado.</p></div></td></tr>';
+    const parcelaRows=parcelas.map(p=>`<tr><td class="td-mono">${p.numeroOperacao}</td><td>${p.numero}</td><td>${fmtMoeda(p.valor)}</td><td>${fmtMoeda(p.valorJuros)}</td><td>${fmtMoeda(p.saldoDepois)}</td><td>${statusBadge(p.status)}</td><td class="td-muted">${fmtData(p.dataVencimento)}</td></tr>`).join('')||'<tr><td colspan="7"><div class="empty-state"><p>Nenhuma parcela.</p></div></td></tr>';
     document.getElementById('modalClienteConteudo').innerHTML=`
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
         <div style="width:48px;height:48px;background:var(--primary-muted);border-radius:12px;display:grid;place-items:center;font-size:1.2rem;font-weight:700;color:var(--primary);flex-shrink:0">${c.nome.charAt(0).toUpperCase()}</div>
         <div><div style="font-size:1.05rem;font-weight:700">${c.nome}</div><div style="font-size:.82rem;color:var(--text3);font-family:var(--mono)">${c.telefone}</div></div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px">
         <div style="background:var(--surface2);border-radius:var(--radius);padding:12px">
           <div style="font-size:.7rem;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Score</div>
           <div style="font-size:1.6rem;font-weight:700;font-family:var(--mono);color:${cor}">${c.score}</div>
-          <div style="font-size:.75rem;color:var(--text3)">${av?.mensagem||''}</div>
+          <div style="font-size:.75rem;color:var(--text3)">score atual</div>
         </div>
         <div style="background:var(--surface2);border-radius:var(--radius);padding:12px">
-          <div style="font-size:.7rem;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Empréstimos</div>
-          <div style="font-size:1.6rem;font-weight:700;font-family:var(--mono)">${c.emprestimos?.length||0}</div>
-          <div style="font-size:.75rem;color:var(--text3)">total histórico</div>
+          <div style="font-size:.7rem;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Abertas</div>
+          <div style="font-size:1.6rem;font-weight:700;font-family:var(--mono)">${resumo.operacoesEmAberto||0}</div>
+          <div style="font-size:.75rem;color:var(--text3)">operações</div>
         </div>
+        <div style="background:var(--surface2);border-radius:var(--radius);padding:12px"><div style="font-size:.7rem;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Docs</div><div style="font-size:1.6rem;font-weight:700;font-family:var(--mono)">${resumo.totalDocumentos||0}</div><div style="font-size:.75rem;color:var(--text3)">anexados</div></div>
+        <div style="background:var(--surface2);border-radius:var(--radius);padding:12px"><div style="font-size:.7rem;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Parcelas</div><div style="font-size:1.6rem;font-weight:700;font-family:var(--mono)">${resumo.parcelasEmAberto||0}</div><div style="font-size:.75rem;color:var(--text3)">em aberto</div></div>
       </div>
-      <div style="font-size:.75rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Histórico de score</div>
-      <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">${hist}</div>`;
+      <div class="filter-row" style="margin-bottom:14px">
+        ${['dados','documentos','operacoes','contratos','parcelas'].map((t,i)=>`<button class="btn ${i===0?'btn-primary':'btn-ghost'} btn-sm" onclick="trocarAbaCliente('${t}',this)">${t.charAt(0).toUpperCase()+t.slice(1)}</button>`).join('')}
+      </div>
+      <div class="cliente-tab" id="cli-tab-dados"><div style="font-size:.75rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Dados cadastrais</div><div class="preview-box"><div class="preview-row"><span>Nome</span><b>${c.nome}</b></div><div class="preview-row"><span>Telefone</span><b>${c.telefone}</b></div><div class="preview-row"><span>Cadastrado em</span><b>${fmtData(c.criadoEm)}</b></div></div><div style="font-size:.75rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Histórico de score</div><div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">${hist}</div></div>
+      <div class="cliente-tab" id="cli-tab-documentos" style="display:none"><div class="filter-row"><button class="btn btn-primary btn-sm" onclick="selecionarDocumento('${c.id}','RG_FRENTE')">Anexar RG frente</button><button class="btn btn-primary btn-sm" onclick="selecionarDocumento('${c.id}','RG_VERSO')">Anexar RG verso</button><button class="btn btn-primary btn-sm" onclick="selecionarDocumento('${c.id}','COMPROVANTE_ENDERECO')">Anexar comprovante</button><input type="file" id="docUploadInput" accept=".jpg,.jpeg,.png,.pdf" style="display:none"/></div><div class="table-wrap"><table><thead><tr><th>Tipo</th><th>Arquivo</th><th>Status</th><th>Enviado</th><th>Ações</th></tr></thead><tbody>${docRows}</tbody></table></div></div>
+      <div class="cliente-tab" id="cli-tab-operacoes" style="display:none"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Valor</th><th>Juros</th><th>Parcelas</th><th>Status</th><th>Saldo atual</th><th>Contrato</th><th>Ação</th></tr></thead><tbody>${opRows}</tbody></table></div></div>
+      <div class="cliente-tab" id="cli-tab-contratos" style="display:none"><div class="table-wrap"><table><thead><tr><th>Contrato</th><th>Operação</th><th>Status</th><th>Criado</th><th>Arquivo</th></tr></thead><tbody>${contratoRows}</tbody></table></div></div>
+      <div class="cliente-tab" id="cli-tab-parcelas" style="display:none"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>#</th><th>Valor</th><th>Juros</th><th>Saldo depois</th><th>Status</th><th>Vencimento</th></tr></thead><tbody>${parcelaRows}</tbody></table></div></div>`;
   }catch(e){document.getElementById('modalClienteConteudo').innerHTML='<p>Erro de conexão.</p>';}
+}
+
+function trocarAbaCliente(aba,btn){
+  document.querySelectorAll('#modalClienteConteudo .cliente-tab').forEach(el=>el.style.display='none');
+  const alvo=document.getElementById(`cli-tab-${aba}`);
+  if(alvo)alvo.style.display='block';
+  btn.parentElement.querySelectorAll('button').forEach(b=>{b.classList.remove('btn-primary');b.classList.add('btn-ghost');});
+  btn.classList.remove('btn-ghost');btn.classList.add('btn-primary');
+}
+
+function statusDoc(s){
+  const map={PENDENTE:['badge-warning','Pendente'],APROVADO:['badge-success','Aprovado'],RECUSADO:['badge-danger','Recusado']};
+  const [cls,txt]=map[s]||['badge-neutral',s];
+  return `<span class="badge ${cls}">${txt}</span>`;
+}
+
+function statusContratoBadge(s){
+  const map={GERADO:['badge-primary','Gerado'],ENVIADO:['badge-warning','Enviado'],ACEITO:['badge-success','Aceito'],CANCELADO:['badge-danger','Cancelado']};
+  const [cls,txt]=map[s]||['badge-neutral',s];
+  return `<span class="badge ${cls}">${txt}</span>`;
+}
+
+function statusOperacaoBadge(s){
+  const map={QUITADO:['badge-success','Quitado'],CANCELADO:['badge-danger','Cancelado'],RECUSADO:['badge-danger','Recusado'],ATRASADO:['badge-danger','Atrasado'],EM_DIA:['badge-success','Em dia'],LIBERADO:['badge-primary','Liberado'],APROVADO:['badge-primary','Aprovado'],AGUARDANDO_ACEITE:['badge-warning','Aguardando aceite']};
+  const [cls,txt]=map[s]||['badge-neutral',s];
+  return `<span class="badge ${cls}">${txt}</span>`;
+}
+
+function selecionarDocumento(clienteId,tipoDocumento){
+  const input=document.getElementById('docUploadInput');
+  input.value='';
+  input.onchange=()=>enviarDocumento(clienteId,tipoDocumento,input.files[0]);
+  input.click();
+}
+
+async function enviarDocumento(clienteId,tipoDocumento,arquivo){
+  if(!arquivo)return;
+  const form=new FormData();
+  form.append('tipoDocumento',tipoDocumento);
+  form.append('arquivo',arquivo);
+  try{
+    const r=await apiUpload(`/api/clientes/${clienteId}/documentos`,form);
+    if(r.ok){toast('Documento enviado!','ok');verCliente(clienteId);}
+    else toast(r.data.mensagem||'Erro ao enviar documento.','err');
+  }catch(e){toast('Erro de conexão.','err');}
+}
+
+async function baixarDocumento(clienteId,documentoId){
+  try{
+    const r=await fetch(`${API}/api/clientes/${clienteId}/documentos/${documentoId}/download`,{headers:{'Authorization':`Bearer ${token}`}});
+    if(!r.ok){toast('Erro ao baixar documento.','err');return;}
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }catch(e){toast('Erro de conexão.','err');}
+}
+
+async function excluirDocumento(clienteId,documentoId){
+  if(!confirm('Excluir este documento?'))return;
+  const r=await apiFetch(`/api/clientes/${clienteId}/documentos/${documentoId}`,{method:'DELETE'});
+  if(r.ok){toast('Documento excluído.','ok');verCliente(clienteId);}
+  else toast(r.data.mensagem||'Erro ao excluir documento.','err');
 }
 
 // ═══════════════════════════════════════
@@ -735,17 +823,18 @@ async function verCliente(id){
 // ═══════════════════════════════════════
 async function carregarEmprestimos(){
   const tbody=document.getElementById('tbodyEmprestimos');
-  tbody.innerHTML='<tr><td colspan="8"><div class="loading"><div class="spinner"></div> Carregando...</div></td></tr>';
+  tbody.innerHTML='<tr><td colspan="9"><div class="loading"><div class="spinner"></div> Carregando...</div></td></tr>';
   const status=document.getElementById('filtroStatusEmp').value;
   try{
     const {ok,data}=await apiFetch(status?`/api/emprestimos?status=${status}`:'/api/emprestimos');
-    if(!ok){tbody.innerHTML='<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text3)">Erro ao carregar.</td></tr>';return;}
+    if(!ok){tbody.innerHTML='<tr><td colspan="9" style="padding:24px;text-align:center;color:var(--text3)">Erro ao carregar.</td></tr>';return;}
     const emps=data.emprestimos||[];
     emprestimosCache=emps;
-    if(!emps.length){tbody.innerHTML=`<tr><td colspan="8"><div class="empty-state"><div class="empty-state-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><p>Nenhum empréstimo encontrado.</p></div></td></tr>`;return;}
+    if(!emps.length){tbody.innerHTML=`<tr><td colspan="9"><div class="empty-state"><div class="empty-state-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><p>Nenhum empréstimo encontrado.</p></div></td></tr>`;return;}
     tbody.innerHTML=emps.map(e=>{
       const parcs=e.totalParcelas>1?`<span class="badge badge-primary">${e.totalParcelas}x</span>`:`<span class="badge badge-neutral">à vista</span>`;
       return `<tr onclick="abrirParcelasEmprestimo('${e.id}')" style="cursor:pointer">
+        <td class="td-mono">${e.numeroOperacao||'—'}</td>
         <td><span style="font-weight:600">${e.cliente?.nome||'—'}</span></td>
         <td class="td-mono">${fmtMoeda(e.valor)}</td>
         <td class="td-mono">${e.juros}%</td>
@@ -759,7 +848,7 @@ async function carregarEmprestimos(){
         </div></td>
       </tr>`;
     }).join('');
-  }catch(e){tbody.innerHTML='<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text3)">Erro de conexão.</td></tr>';}
+  }catch(e){tbody.innerHTML='<tr><td colspan="9" style="padding:24px;text-align:center;color:var(--text3)">Erro de conexão.</td></tr>';}
 }
 
 function abrirModalNovoEmprestimo(){
@@ -844,8 +933,8 @@ async function abrirParcelasEmprestimo(id){
 
   box.innerHTML=`
     <div class="modal-icon-wrap" style="background:var(--primary-light)"><svg style="stroke:var(--primary)" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-    <div class="modal-title">Parcelas do empréstimo</div>
-    <div class="modal-sub">${emp.cliente?.nome||'Cliente'} · ${fmtMoeda(emp.valor)} principal · ${emp.juros}% ao mês sobre saldo devedor</div>
+    <div class="modal-title">Parcelas da operação ${emp.numeroOperacao||''}</div>
+    <div class="modal-sub">${emp.cliente?.nome||'Cliente'} · Contrato ${emp.numeroContrato||emp.contratos?.[0]?.numeroContrato||'—'} · ${fmtMoeda(emp.valor)} principal · ${emp.juros}% ao mês sobre saldo devedor</div>
     <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
       <div class="kpi" style="padding:12px"><div class="kpi-info"><div class="kpi-label">Total</div><div class="kpi-value" style="font-size:1rem">${fmtMoeda(emp.valorTotal)}</div></div></div>
       <div class="kpi" style="padding:12px"><div class="kpi-info"><div class="kpi-label">Pago</div><div class="kpi-value" style="font-size:1rem">${fmtMoeda(totalPago)}</div></div></div>
@@ -982,10 +1071,10 @@ async function exportarExcel(){
 
     // Aba Empréstimos
     const empRows=(data.emprestimos||[]).map(e=>({
-      'ID':e.id,'Cliente':e.cliente?.nome||'','Telefone':e.cliente?.telefone||'',
+      'ID':e.id,'Operação':e.numeroOperacao||'','Contrato':e.numeroContrato||e.contratos?.[0]?.numeroContrato||'','Cliente':e.cliente?.nome||'','Telefone':e.cliente?.telefone||'',
       'Valor Principal':e.valor,'Juros (%)':e.juros,'Valor Total':e.valorTotal,
       'Parcelas':e.totalParcelas,'Data Empréstimo':fmtData(e.dataEmprestimo),
-      'Data Vencimento':fmtData(e.dataVencimento),'Status':e.status,
+      'Data Vencimento':fmtData(e.dataVencimento),'Status':e.status,'Status Operação':e.statusOperacao||'',
     }));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(empRows),'Empréstimos');
 
