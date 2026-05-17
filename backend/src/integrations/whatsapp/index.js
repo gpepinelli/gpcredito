@@ -141,23 +141,48 @@ class BaileysAdapter {
     }
   }
 
-  _jid(telefone) {
+  _candidatosJid(telefone) {
     const n = telefone.replace(/\D/g, '');
     if (telefone.includes('@')) return telefone;
     const numero = n.startsWith('55') ? n : `55${n}`;
-    return `${numero}@s.whatsapp.net`;
+    const candidatos = new Set([numero]);
+
+    // No Brasil, algumas contas ainda resolvem sem o nono digito.
+    if (numero.length === 13 && numero.startsWith('55') && numero[4] === '9') {
+      candidatos.add(`${numero.slice(0, 4)}${numero.slice(5)}`);
+    }
+
+    return [...candidatos].map(candidato => `${candidato}@s.whatsapp.net`);
+  }
+
+  async _resolverJid(telefone) {
+    if (telefone.includes('@')) return telefone;
+    const candidatos = this._candidatosJid(telefone);
+    try {
+      const resultados = await this.sock.onWhatsApp(...candidatos);
+      const encontrado = resultados?.find(r => r.exists && r.jid);
+      logger.info('Resolucao de WhatsApp', { telefone, candidatos, encontrado: encontrado?.jid || null });
+      return encontrado?.jid || candidatos[0];
+    } catch (error) {
+      logger.warn('Nao foi possivel resolver numero no WhatsApp, usando JID padrao', { telefone, error: error.message });
+      return candidatos[0];
+    }
   }
 
   async sendMessage(telefone, mensagem) {
-    const jid = this._jid(telefone);
-    if (!this.connected) { this.messageQueue.push({ type: 'text', jid, mensagem }); return false; }
-    try { await this.sock.sendMessage(jid, { text: mensagem }); return true; }
+    if (!this.connected) { this.messageQueue.push({ type: 'text', telefone, mensagem }); return false; }
+    const jid = await this._resolverJid(telefone);
+    try {
+      const resultado = await this.sock.sendMessage(jid, { text: mensagem });
+      logger.info('Mensagem enviada via WhatsApp', { telefone, jid, messageId: resultado?.key?.id });
+      return true;
+    }
     catch (e) { logger.error('Erro WA texto', { e: e.message }); return false; }
   }
 
   async sendDocument(telefone, caminhoPdf, nomeArquivo, legenda) {
-    const jid = this._jid(telefone);
-    if (!this.connected) { this.messageQueue.push({ type: 'document', jid, caminhoPdf, nomeArquivo, legenda }); return false; }
+    if (!this.connected) { this.messageQueue.push({ type: 'document', telefone, caminhoPdf, nomeArquivo, legenda }); return false; }
+    const jid = await this._resolverJid(telefone);
     try {
       const resultado = await this.sock.sendMessage(jid, { document: fs.readFileSync(caminhoPdf), fileName: nomeArquivo, mimetype: 'application/pdf', caption: legenda });
       logger.info('📄 PDF enviado via WhatsApp', { telefone, jid, nomeArquivo, messageId: resultado?.key?.id });
@@ -168,9 +193,9 @@ class BaileysAdapter {
   async _processQueue() {
     for (const item of this.messageQueue) {
       if (item.type === 'document')
-        await this.sock.sendMessage(item.jid, { document: fs.readFileSync(item.caminhoPdf), fileName: item.nomeArquivo, mimetype: 'application/pdf', caption: item.legenda });
+        await this.sendDocument(item.telefone, item.caminhoPdf, item.nomeArquivo, item.legenda);
       else
-        await this.sock.sendMessage(item.jid, { text: item.mensagem });
+        await this.sendMessage(item.telefone, item.mensagem);
       await new Promise(r => setTimeout(r, 1000));
     }
     this.messageQueue = [];
@@ -255,6 +280,7 @@ class WhatsAppService {
   async enviarContrato(cliente, caminhoPdf) {
     const nomeArquivo = `Contrato_Emprestimo_${cliente.nome.replace(/\s+/g, '_')}.pdf`;
     await this.adapter.sendMessage(cliente.telefone, templates.contratoAviso(cliente.nome));
+    await new Promise(r => setTimeout(r, 1200));
     return this.adapter.sendDocument(cliente.telefone, caminhoPdf, nomeArquivo, templates.contrato(cliente.nome));
   }
 }
