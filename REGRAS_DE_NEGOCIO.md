@@ -53,16 +53,22 @@ Este documento descreve todas as regras de negócio do sistema de empréstimos.
 ## 3. EMPRÉSTIMOS
 
 ### 3.1 Criação
-- Um cliente só pode ter **um empréstimo ativo** por vez (status `pendente` ou `atrasado`).
+- Por padrão, um cliente só pode ter **uma operação financeira ativa** por vez.
+- A regra pode ser alterada pela configuração `ALLOW_MULTIPLE_ACTIVE_OPERATIONS`.
+- Status considerados em aberto: `AGUARDANDO_ACEITE`, `APROVADO`, `LIBERADO`, `EM_DIA`, `ATRASADO`.
+- Status finalizados: `QUITADO`, `CANCELADO`, `RECUSADO`.
 - Valor mínimo: **R$ 10,00**.
-- Juros: de **0% a 100% ao mês** (compostos mensalmente).
+- Juros: de **0% a 100% ao mês**.
 - Prazo padrão: **30 dias** (para empréstimo de parcela única).
 - O Pix **não é gerado no momento da criação** — é gerado pelo cron job no dia do vencimento.
 
 ### 3.2 Cálculo do valor total
 ```
-Valor Total = Valor Principal × (1 + Juros%) ^ Meses
-Exemplo: R$ 1.000 com 5% ao mês por 3 meses = R$ 1.157,63
+Para parcela única:
+Valor Total = Valor Principal + Juros sobre o principal
+
+Para empréstimo parcelado:
+O juros de cada parcela é calculado sobre o saldo devedor atual.
 ```
 
 ### 3.3 Status possíveis
@@ -76,7 +82,10 @@ Exemplo: R$ 1.000 com 5% ao mês por 3 meses = R$ 1.157,63
 - O pagamento pode ser registrado **manualmente** pelo painel (campo "Valor pago").
 - Ou **automaticamente** via webhook do Mercado Pago após confirmação do Pix.
 - Ao confirmar o pagamento, o score do cliente é atualizado automaticamente.
-- Após o pagamento total, o sistema aguarda **5 minutos** e envia uma mensagem de renovação via WhatsApp.
+- Após a quitação total, o sistema não envia renovação imediatamente.
+- A oferta de renovação só pode ser enviada **15 dias após a quitação do contrato**.
+- A oferta só é enviada se o cliente **não tiver pegado nova operação financeira** após a quitação.
+- A oferta de renovação é enviada apenas uma vez por operação quitada.
 
 ---
 
@@ -85,16 +94,20 @@ Exemplo: R$ 1.000 com 5% ao mês por 3 meses = R$ 1.157,63
 ### 4.1 Como funciona
 - O administrador escolhe o número de parcelas (1 a 60) ao criar o empréstimo.
 - Intervalo fixo de **30 dias** entre parcelas.
-- O valor total (principal + juros) é dividido igualmente entre as parcelas.
+- O principal é amortizado mensalmente.
+- O juros de cada parcela é calculado apenas sobre o **saldo devedor atual**.
+- A cada parcela paga, a amortização abate o saldo principal.
+- O sistema não calcula juros sobre o valor original em todas as parcelas.
+- O sistema não usa juros fixo total dividido igualmente.
 - Diferenças de centavos são ajustadas na **última parcela**.
 
 ### 4.2 Exemplo
 ```
 Empréstimo: R$ 1.000 | Juros: 10% | 3 parcelas
-Valor total: R$ 1.100
-Parcela 1: R$ 366,67 — vence em 30 dias
-Parcela 2: R$ 366,67 — vence em 60 dias
-Parcela 3: R$ 366,66 — vence em 90 dias
+Amortização base: R$ 333,33 por parcela
+Parcela 1: juros sobre R$ 1.000,00
+Parcela 2: juros sobre R$ 666,67
+Parcela 3: juros sobre R$ 333,34
 ```
 
 ### 4.3 Status das parcelas
@@ -105,7 +118,7 @@ Parcela 3: R$ 366,66 — vence em 90 dias
 | `atrasado` | Passou do vencimento |
 
 ### 4.4 Regras de pagamento parcelado
-- Ao registrar um pagamento, o sistema marca a **próxima parcela pendente** como paga.
+- Ao registrar um pagamento de parcela, o sistema liquida apenas a **parcela selecionada**.
 - O empréstimo só muda para `pago` quando **todas as parcelas** forem quitadas.
 - Enquanto houver parcelas pendentes, o status do empréstimo permanece `pendente`.
 - Score é atualizado apenas na **quitação total** do empréstimo.
@@ -115,6 +128,7 @@ Parcela 3: R$ 366,66 — vence em 90 dias
 ## 5. COBRANÇAS AUTOMÁTICAS (CRON JOB)
 
 O sistema executa verificações automáticas **todos os dias às 09h00 e 18h00** (horário de Brasília).
+As ofertas de renovação são verificadas diariamente às **09h30**.
 
 ### 5.1 Fluxo de cobranças
 | Situação | Ação |
@@ -124,6 +138,7 @@ O sistema executa verificações automáticas **todos os dias às 09h00 e 18h00*
 | Atrasado (qualquer dia) | Envia cobrança firme via WhatsApp |
 | 8+ dias atrasado | Aplica −50 no score (inadimplência) |
 | Passou de `pendente` p/ atraso | Atualiza status para `atrasado` |
+| Contrato quitado há 15 dias e sem nova operação | Envia oferta de renovação |
 
 ### 5.2 Envio do Pix
 - O Pix é gerado **no dia do vencimento**, não antes.
@@ -159,7 +174,7 @@ O sistema executa verificações automáticas **todos os dias às 09h00 e 18h00*
 | Vence hoje | Aviso + código Pix (2 msgs) |
 | Atrasado | Cobrança urgente com dias de atraso |
 | Pagamento confirmado | Confirmação + agradecimento |
-| Renovação (5 min após pagamento) | Oferta de novo empréstimo |
+| Renovação (15 dias após quitação, se não houver nova operação) | Oferta de novo empréstimo |
 
 ---
 
@@ -230,7 +245,7 @@ O sistema executa verificações automáticas **todos os dias às 09h00 e 18h00*
 9. Sistema marca parcela como "paga" (se parcelado)
 10. Se todas as parcelas pagas → empréstimo = "pago"
 11. Score do cliente é atualizado conforme pontualidade
-12. Sistema aguarda 5 min e envia oferta de renovação
+12. Após 15 dias da quitação, se não houver nova operação, o sistema envia oferta de renovação
 ```
 
 ---

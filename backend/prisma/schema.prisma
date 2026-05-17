@@ -36,6 +36,7 @@ model Emprestimo {
   dataVencimento  DateTime @map("data_vencimento")
   status          StatusEmprestimo @default(pendente)
   statusOperacao  StatusOperacao @default(EM_DIA) @map("status_operacao")
+  renovacaoOferecidaEm DateTime? @map("renovacao_oferecida_em")
   // Parcelamento
   totalParcelas   Int      @default(1) @map("total_parcelas")
   pixQrCode       String?  @map("pix_qr_code")

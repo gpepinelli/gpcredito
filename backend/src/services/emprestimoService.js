@@ -9,6 +9,8 @@ const logger = require('../utils/logger');
 
 const prisma = new PrismaClient();
 const STATUS_OPERACAO_ABERTA = ['AGUARDANDO_ACEITE', 'APROVADO', 'LIBERADO', 'EM_DIA', 'ATRASADO'];
+const STATUS_OPERACAO_FINALIZADA_SEM_RENOVACAO = ['CANCELADO', 'RECUSADO'];
+const DIAS_PARA_OFERTA_RENOVACAO = 15;
 
 function permitirMultiplasOperacoesAtivas() {
   return String(process.env.ALLOW_MULTIPLE_ACTIVE_OPERATIONS || '').toLowerCase() === 'true';
@@ -177,7 +179,6 @@ class EmprestimoService {
       const tipoScore = scoreService.determinarTipoScore(diasAtraso);
       await scoreService.aplicarAlteracao(emprestimo.clienteId, tipoScore);
       await whatsapp.enviarConfirmacao(emprestimo.cliente, pagamento);
-      setTimeout(async () => { await whatsapp.enviarRenovacao(emprestimo.cliente); }, 5 * 60 * 1000);
     }
 
     logger.info('✅ Pagamento confirmado', { emprestimoId, valorPago, novoStatus });
@@ -234,7 +235,6 @@ class EmprestimoService {
       const tipoScore = scoreService.determinarTipoScore(diasAtraso);
       await scoreService.aplicarAlteracao(emprestimo.clienteId, tipoScore);
       await whatsapp.enviarConfirmacao(emprestimo.cliente, pagamento);
-      setTimeout(async () => { await whatsapp.enviarRenovacao(emprestimo.cliente); }, 5 * 60 * 1000);
     }
 
     logger.info('✅ Parcela paga', { emprestimoId, parcelaId, valorPago: parcela.valor, novoStatus });
@@ -326,6 +326,83 @@ class EmprestimoService {
       prisma.pagamento.findMany({ include: { emprestimo: { include: { cliente: true } } }, orderBy: { dataPagamento: 'desc' } }),
     ]);
     return { emprestimos, clientes, pagamentos };
+  }
+
+  async processarRenovacoesPendentes(agora = new Date()) {
+    const limite = new Date(agora);
+    limite.setDate(limite.getDate() - DIAS_PARA_OFERTA_RENOVACAO);
+
+    const emprestimos = await prisma.emprestimo.findMany({
+      where: {
+        status: 'pago',
+        statusOperacao: 'QUITADO',
+        renovacaoOferecidaEm: null,
+      },
+      include: {
+        cliente: true,
+        pagamentos: {
+          where: { status: 'confirmado' },
+          orderBy: { dataPagamento: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    let enviadas = 0;
+    let aguardandoPrazo = 0;
+    let ignoradasPorNovaOperacao = 0;
+
+    for (const emprestimo of emprestimos) {
+      const dataQuitacao = emprestimo.pagamentos[0]?.dataPagamento || emprestimo.dataVencimento;
+      if (dataQuitacao > limite) {
+        aguardandoPrazo++;
+        continue;
+      }
+
+      const novaOperacao = await prisma.emprestimo.findFirst({
+        where: {
+          clienteId: emprestimo.clienteId,
+          id: { not: emprestimo.id },
+          dataEmprestimo: { gt: dataQuitacao },
+          statusOperacao: { notIn: STATUS_OPERACAO_FINALIZADA_SEM_RENOVACAO },
+        },
+        select: { id: true, numeroOperacao: true, statusOperacao: true },
+      });
+
+      if (novaOperacao) {
+        ignoradasPorNovaOperacao++;
+        continue;
+      }
+
+      const operacaoAtiva = await prisma.emprestimo.findFirst({
+        where: {
+          clienteId: emprestimo.clienteId,
+          id: { not: emprestimo.id },
+          statusOperacao: { in: STATUS_OPERACAO_ABERTA },
+        },
+        select: { id: true, numeroOperacao: true },
+      });
+
+      if (operacaoAtiva) {
+        ignoradasPorNovaOperacao++;
+        continue;
+      }
+
+      await whatsapp.enviarRenovacao(emprestimo.cliente);
+      await prisma.emprestimo.update({
+        where: { id: emprestimo.id },
+        data: { renovacaoOferecidaEm: agora },
+      });
+      enviadas++;
+      logger.info('Oferta de renovacao enviada', {
+        emprestimoId: emprestimo.id,
+        numeroOperacao: emprestimo.numeroOperacao,
+        clienteId: emprestimo.clienteId,
+        dataQuitacao,
+      });
+    }
+
+    return { enviadas, aguardandoPrazo, ignoradasPorNovaOperacao, analisadas: emprestimos.length };
   }
 }
 

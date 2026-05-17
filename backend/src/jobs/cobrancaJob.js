@@ -80,10 +80,21 @@ async function verificarVencimentos() {
   logger.info('✅ [CRON] Verificação concluída', { lembretes, pixGerados, cobrancasAtraso, marcadosAtrasados, total: emprestimos.length });
 }
 
+async function verificarRenovacoes() {
+  logger.info('[CRON] Iniciando verificacao de renovacoes...');
+  try {
+    const resultado = await emprestimoService.processarRenovacoesPendentes();
+    logger.info('[CRON] Renovacoes verificadas', resultado);
+  } catch (error) {
+    logger.error('Erro ao verificar renovacoes', { error: error.message });
+  }
+}
+
 function iniciarJobs() {
   cron.schedule('0 9 * * *', verificarVencimentos, { timezone: 'America/Sao_Paulo' });
   cron.schedule('0 18 * * *', verificarVencimentos, { timezone: 'America/Sao_Paulo' });
-  logger.info('✅ Cron jobs registrados: verificação diária às 09:00 e 18:00 (Brasília)');
+  cron.schedule('30 9 * * *', verificarRenovacoes, { timezone: 'America/Sao_Paulo' });
+  logger.info('✅ Cron jobs registrados: cobranças às 09:00 e 18:00; renovações às 09:30 (Brasília)');
 }
 
-module.exports = { iniciarJobs, verificarVencimentos };
+module.exports = { iniciarJobs, verificarVencimentos, verificarRenovacoes };
