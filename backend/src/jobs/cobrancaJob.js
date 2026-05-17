@@ -33,7 +33,7 @@ async function verificarVencimentos() {
   });
 
   let lembretes = 0;
-  let pixGerados = 0;
+  let pixEnviados = 0;
   let cobrancasAtraso = 0;
   let marcadosAtrasados = 0;
 
@@ -46,13 +46,14 @@ async function verificarVencimentos() {
         // Ainda tem mais de 1 dia → não faz nada
         continue;
       } else if (venceAmanha) {
-        // Vence amanhã → lembrete leve (sem Pix ainda)
+        // Vence amanha: lembrete + Pix manual do credor
         await whatsapp.enviarLembrete(emp.cliente, emp);
+        if (await whatsapp.enviarPixManual(emp.cliente, emp)) pixEnviados++;
         lembretes++;
       } else if (diasAtraso === 0) {
-        // Vence hoje → gera Pix e envia duas mensagens separadas
-        await emprestimoService.gerarEEnviarPix(emp, emp.cliente);
-        pixGerados++;
+        // Vence hoje: aviso + Pix manual do credor
+        await whatsapp.enviarCobrancaHoje(emp.cliente, emp);
+        if (await whatsapp.enviarPixManual(emp.cliente, emp)) pixEnviados++;
       } else if (diasAtraso > 0) {
         // Atrasado → cobrança firme + marca como atrasado
         if (emp.status !== 'atrasado') {
@@ -63,6 +64,7 @@ async function verificarVencimentos() {
           marcadosAtrasados++;
         }
         await whatsapp.enviarCobrancaAtraso(emp.cliente, emp, diasAtraso);
+        if (await whatsapp.enviarPixManual(emp.cliente, emp)) pixEnviados++;
         cobrancasAtraso++;
 
         if (diasAtraso === 8) {
@@ -77,7 +79,7 @@ async function verificarVencimentos() {
     }
   }
 
-  logger.info('✅ [CRON] Verificação concluída', { lembretes, pixGerados, cobrancasAtraso, marcadosAtrasados, total: emprestimos.length });
+  logger.info('✅ [CRON] Verificação concluída', { lembretes, pixEnviados, cobrancasAtraso, marcadosAtrasados, total: emprestimos.length });
 }
 
 async function verificarRenovacoes() {

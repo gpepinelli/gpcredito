@@ -77,10 +77,13 @@ Variáveis importantes para integração e deploy:
 ```bash
 APP_URL=https://seu-dominio-ou-ngrok
 CORS_ORIGIN=https://seu-dominio-ou-ngrok
-MERCADOPAGO_ACCESS_TOKEN=seu_access_token
+PIX_CHAVE=sua_chave_pix
+PIX_NOME=Guilherme dos Santos Pepinelli
 ```
 
-No Mercado Pago, cadastre o webhook de pagamentos apontando para:
+Na V1, as cobranças automáticas por WhatsApp enviam lembrete e o Pix manual configurado em `PIX_CHAVE`. O Mercado Pago/webhook fica opcional e pode ser retomado na V2, com domínio/VPS.
+
+Se for usar Mercado Pago no futuro, cadastre o webhook de pagamentos apontando para:
 
 ```text
 https://seu-dominio-ou-ngrok/api/webhook/mercadopago

@@ -10,15 +10,23 @@ const pino = require('pino');
 const prisma = new PrismaClient();
 const TERMOS_ACEITE = ['DE ACORDO', 'CONCORDO', 'SIM'];
 
+function dadosPixManual() {
+  const chave = process.env.PIX_CHAVE || process.env.MEU_PIX || '';
+  const nome = process.env.PIX_NOME || process.env.PIX_TITULAR || 'Guilherme dos Santos Pepinelli';
+  return { chave: chave.trim(), nome: nome.trim() };
+}
+
 const templates = {
   lembrete: (nome, valor, dataVencimento) =>
     `Olá *${nome}*! 👋\n\nPassando para lembrar que seu pagamento de *R$ ${valor}* vence amanhã (${dataVencimento}).\n\nPague em dia e garanta +10 pontos no seu score! 😊`,
   vencimentoHoje: (nome, valor) =>
-    `Olá *${nome}*! ⚠️\n\nSeu pagamento de *R$ ${valor}* vence *hoje*.\n\nGerei um Pix para você — o código chega na próxima mensagem, é só copiar e colar no seu banco. 👇`,
+    `Olá *${nome}*! ⚠️\n\nSeu pagamento de *R$ ${valor}* vence *hoje*.\n\nSegue o Pix para pagamento na próxima mensagem.`,
+  pixManual: (valor, chave, nome) =>
+    `Pix para pagamento: ${chave}\nFavorecido: ${nome}\nValor: R$ ${valor}\n\nApós pagar, envie o comprovante por aqui para conferência.`,
   pixCopiaCola: (copiaCola) =>
     copiaCola,
   atraso: (nome, valor, diasAtraso) =>
-    `Olá *${nome}*! 🚨\n\nSeu pagamento de *R$ ${valor}* está em atraso há *${diasAtraso} dia(s)*.\n\nRegularize sua situação o quanto antes para evitar restrições em seu cadastro.`,
+    `Olá *${nome}*! 🚨\n\nSeu pagamento de *R$ ${valor}* está em atraso há *${diasAtraso} dia(s)*.\n\nRegularize sua situação o quanto antes. O Pix para pagamento vai na próxima mensagem.`,
   confirmacao: (nome, valor) =>
     `✅ *Pagamento confirmado!*\n\nOlá *${nome}*, recebemos seu pagamento de *R$ ${valor}*.\n\nObrigado pela confiança! 🎉`,
   renovacao: (nome) =>
@@ -290,9 +298,32 @@ class WhatsAppService {
    * Mensagem 2 — somente o código copia e cola, para o cliente copiar direto
    */
   async enviarPixCopiaCola(cliente, emprestimo) {
+    const { formatarMoeda } = require('../../utils/calculadora');
+    const pix = dadosPixManual();
+    if (pix.chave) {
+      return this.adapter.sendMessage(
+        cliente.telefone,
+        templates.pixManual(formatarMoeda(emprestimo.valorTotal), pix.chave, pix.nome)
+      );
+    }
+
     return this.adapter.sendMessage(
       cliente.telefone,
       templates.pixCopiaCola(emprestimo.pixCopiaCola)
+    );
+  }
+
+  async enviarPixManual(cliente, emprestimo) {
+    const { formatarMoeda } = require('../../utils/calculadora');
+    const pix = dadosPixManual();
+    if (!pix.chave) {
+      logger.warn('PIX_CHAVE nao configurada; Pix manual nao enviado', { clienteId: cliente.id, emprestimoId: emprestimo.id });
+      return false;
+    }
+
+    return this.adapter.sendMessage(
+      cliente.telefone,
+      templates.pixManual(formatarMoeda(emprestimo.valorTotal), pix.chave, pix.nome)
     );
   }
 
