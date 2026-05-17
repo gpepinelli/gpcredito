@@ -48,6 +48,11 @@ class OperacaoController {
         },
       });
 
+      await prisma.emprestimo.update({
+        where: { numeroOperacao },
+        data: { statusOperacao: 'APROVADO' },
+      });
+
       logger.info('Contrato aceito', {
         numeroOperacao,
         numeroContrato: atualizado.numeroContrato,

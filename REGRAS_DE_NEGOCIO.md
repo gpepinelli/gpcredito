@@ -61,6 +61,9 @@ Este documento descreve todas as regras de negócio do sistema de empréstimos.
 - Juros: de **0% a 100% ao mês**.
 - Prazo padrão: **30 dias** (para empréstimo de parcela única).
 - O Pix **não é gerado no momento da criação** — é gerado pelo cron job no dia do vencimento.
+- Ao criar a operação, o sistema gera o contrato PDF e tenta enviar pelo WhatsApp ao cliente.
+- A operação nasce com status `AGUARDANDO_ACEITE`.
+- O dinheiro só deve ser liberado após o contrato estar `ACEITO`.
 
 ### 3.2 Cálculo do valor total
 ```
@@ -78,7 +81,19 @@ O juros de cada parcela é calculado sobre o saldo devedor atual.
 | `pago` | Totalmente quitado |
 | `atrasado` | Passou da data de vencimento sem pagamento |
 
-### 3.4 Pagamento
+### 3.4 Status da operação financeira
+| Status | Significado |
+|--------|-------------|
+| `AGUARDANDO_ACEITE` | Contrato enviado/gerado e aguardando aceite do cliente |
+| `APROVADO` | Cliente aceitou o contrato; operação pronta para liberação do dinheiro |
+| `LIBERADO` | Dinheiro liberado ao cliente |
+| `EM_DIA` | Operação ativa e em acompanhamento |
+| `ATRASADO` | Operação com atraso |
+| `QUITADO` | Operação quitada |
+| `CANCELADO` | Operação cancelada |
+| `RECUSADO` | Operação recusada |
+
+### 3.5 Pagamento
 - O pagamento pode ser registrado **manualmente** pelo painel (campo "Valor pago").
 - Ou **automaticamente** via webhook do Mercado Pago após confirmação do Pix.
 - Ao confirmar o pagamento, o score do cliente é atualizado automaticamente.

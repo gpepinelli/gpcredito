@@ -6,6 +6,7 @@ const scoreService = require('./scoreService');
 const whatsapp = require('../integrations/whatsapp');
 const mercadopago = require('../integrations/mercadopago');
 const logger = require('../utils/logger');
+const contratoService = require('./contratoService');
 
 const prisma = new PrismaClient();
 const STATUS_OPERACAO_ABERTA = ['AGUARDANDO_ACEITE', 'APROVADO', 'LIBERADO', 'EM_DIA', 'ATRASADO'];
@@ -67,7 +68,7 @@ class EmprestimoService {
         dataVencimento,
         totalParcelas,
         status: 'pendente',
-        statusOperacao: 'EM_DIA',
+        statusOperacao: 'AGUARDANDO_ACEITE',
         parcelas: totalParcelas > 1 ? {
           create: parcelas.map(p => ({
             numero: p.numero,
@@ -94,8 +95,22 @@ class EmprestimoService {
       include: { parcelas: true, contratos: true },
     });
 
-    logger.info('💰 Operação financeira criada', { emprestimoId: emprestimo.id, numeroOperacao, numeroContrato, clienteId, valor, valorTotal, totalParcelas, dataVencimento });
-    return { emprestimo, avaliacao };
+    let contratoEnviado = false;
+    try {
+      const caminhoPdf = await contratoService.gerarContrato(emprestimo, cliente);
+      contratoEnviado = await whatsapp.enviarContrato(cliente, caminhoPdf);
+      if (contratoEnviado) {
+        await prisma.contratoOperacao.update({
+          where: { numeroContrato },
+          data: { statusContrato: 'ENVIADO' },
+        });
+      }
+    } catch (error) {
+      logger.error('Erro ao gerar/enviar contrato da operacao', { emprestimoId: emprestimo.id, numeroOperacao, error: error.message });
+    }
+
+    logger.info('💰 Operação financeira criada', { emprestimoId: emprestimo.id, numeroOperacao, numeroContrato, clienteId, valor, valorTotal, totalParcelas, dataVencimento, contratoEnviado });
+    return { emprestimo, avaliacao, contratoEnviado };
   }
 
   async gerarEEnviarPix(emprestimo, cliente) {
