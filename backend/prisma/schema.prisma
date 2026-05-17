@@ -1,0 +1,118 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Cliente {
+  id         String   @id @default(uuid())
+  nome       String
+  telefone   String   @unique
+  score      Int      @default(100)
+  criadoEm   DateTime @default(now()) @map("criado_em")
+
+  emprestimos    Emprestimo[]
+  historicoScore HistoricoScore[]
+
+  @@map("clientes")
+}
+
+model Emprestimo {
+  id              String   @id @default(uuid())
+  clienteId       String   @map("cliente_id")
+  valor           Float
+  juros           Float
+  valorTotal      Float    @map("valor_total")
+  dataEmprestimo  DateTime @default(now()) @map("data_emprestimo")
+  dataVencimento  DateTime @map("data_vencimento")
+  status          StatusEmprestimo @default(pendente)
+  // Parcelamento
+  totalParcelas   Int      @default(1) @map("total_parcelas")
+  pixQrCode       String?  @map("pix_qr_code")
+  pixCopiaCola    String?  @map("pix_copia_cola")
+  pixPaymentId    String?  @map("pix_payment_id")
+
+  cliente   Cliente    @relation(fields: [clienteId], references: [id])
+  pagamentos Pagamento[]
+  parcelas   Parcela[]
+
+  @@map("emprestimos")
+}
+
+// Parcela individual de um empréstimo parcelado
+model Parcela {
+  id            String   @id @default(uuid())
+  emprestimoId  String   @map("emprestimo_id")
+  numero        Int      // 1, 2, 3...
+  valor         Float    // valor total da parcela
+  amortizacao   Float    @default(0)
+  valorJuros    Float    @default(0) @map("valor_juros")
+  saldoAntes    Float    @default(0) @map("saldo_antes")
+  saldoDepois   Float    @default(0) @map("saldo_depois")
+  dataVencimento DateTime @map("data_vencimento")
+  status        StatusParcela @default(pendente)
+  dataPagamento DateTime? @map("data_pagamento")
+
+  emprestimo Emprestimo @relation(fields: [emprestimoId], references: [id])
+  pagamentos Pagamento[]
+
+  @@map("parcelas")
+}
+
+model Pagamento {
+  id            String   @id @default(uuid())
+  emprestimoId  String   @map("emprestimo_id")
+  parcelaId     String?  @map("parcela_id")
+  valorPago     Float    @map("valor_pago")
+  dataPagamento DateTime @default(now()) @map("data_pagamento")
+  status        StatusPagamento @default(pendente)
+
+  emprestimo Emprestimo @relation(fields: [emprestimoId], references: [id])
+  parcela    Parcela?   @relation(fields: [parcelaId], references: [id])
+
+  @@map("pagamentos")
+}
+
+model HistoricoScore {
+  id        String   @id @default(uuid())
+  clienteId String   @map("cliente_id")
+  alteracao Int
+  motivo    String
+  data      DateTime @default(now())
+
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+
+  @@map("historico_score")
+}
+
+model Log {
+  id        String   @id @default(uuid())
+  tipo      String
+  mensagem  String
+  dados     Json?
+  criadoEm DateTime @default(now()) @map("criado_em")
+
+  @@map("logs")
+}
+
+enum StatusEmprestimo {
+  pendente
+  pago
+  atrasado
+}
+
+enum StatusPagamento {
+  confirmado
+  pendente
+}
+
+enum StatusParcela {
+  pendente
+  pago
+  atrasado
+}

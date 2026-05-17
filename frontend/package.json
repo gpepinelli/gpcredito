@@ -1,0 +1,11 @@
+{
+  "name": "gpcredito-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Frontend do GPCredito. A tela atual esta em public/dashboard.html; pronto para migracao React/Vite.",
+  "scripts": {
+    "preview": "npx serve public"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

@@ -1,0 +1,43 @@
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Ambiente / segredos
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.secret
+
+# Dados operacionais
+logs/
+whatsapp-session/
+backend/whatsapp-session/
+contratos/
+uploads/*
+!uploads/.gitkeep
+*.log
+
+# Banco/local/cache
+*.sqlite
+*.sqlite3
+*.db
+.cache/
+.tmp/
+tmp/
+temp/
+
+# Build/test
+dist/
+build/
+coverage/
+
+# Sistema/editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
