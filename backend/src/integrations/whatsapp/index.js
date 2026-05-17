@@ -18,21 +18,21 @@ function dadosPixManual() {
 
 const templates = {
   lembrete: (nome, valor, dataVencimento) =>
-    `Olá *${nome}*! 👋\n\nPassando para lembrar que seu pagamento de *R$ ${valor}* vence amanhã (${dataVencimento}).\n\nPague em dia e garanta +10 pontos no seu score! 😊`,
+    `Olá *${nome}*! 👋\n\nPassando para lembrar que seu pagamento de *${valor}* vence amanhã (${dataVencimento}).\n\nPague em dia e garanta +10 pontos no seu score! 😊`,
   vencimentoHoje: (nome, valor) =>
-    `Olá *${nome}*! ⚠️\n\nSeu pagamento de *R$ ${valor}* vence *hoje*.\n\nSegue o Pix para pagamento na próxima mensagem.`,
+    `Olá *${nome}*! ⚠️\n\nSeu pagamento de *${valor}* vence *hoje*.\n\nSegue o Pix para pagamento na próxima mensagem.`,
   pixManual: (valor, chave, nome) =>
-    `Pix para pagamento: ${chave}\nFavorecido: ${nome}\nValor: R$ ${valor}\n\nApós pagar, envie o comprovante por aqui para conferência.`,
+    `Pix para pagamento: ${chave}\nFavorecido: ${nome}\nValor: ${valor}\n\nApós pagar, envie o comprovante por aqui para conferência.`,
   pixCopiaCola: (copiaCola) =>
     copiaCola,
   atraso: (nome, valor, diasAtraso) =>
-    `Olá *${nome}*! 🚨\n\nSeu pagamento de *R$ ${valor}* está em atraso há *${diasAtraso} dia(s)*.\n\nRegularize sua situação o quanto antes. O Pix para pagamento vai na próxima mensagem.`,
+    `Olá *${nome}*! 🚨\n\nSeu pagamento de *${valor}* está em atraso há *${diasAtraso} dia(s)*.\n\nRegularize sua situação o quanto antes. O Pix para pagamento vai na próxima mensagem.`,
   confirmacao: (nome, valor) =>
-    `✅ *Pagamento confirmado!*\n\nOlá *${nome}*, recebemos seu pagamento de *R$ ${valor}*.\n\nObrigado pela confiança! 🎉`,
+    `✅ *Pagamento confirmado!*\n\nOlá *${nome}*, recebemos seu pagamento de *${valor}*.\n\nObrigado pela confiança! 🎉`,
   renovacao: (nome) =>
     `Olá *${nome}*! 💰\n\nSeu empréstimo foi quitado com sucesso!\n\nDeseja *renovar seu crédito*? Responda SIM para receber uma nova proposta.`,
   pixGerado: (nome, valor, copiaCola) =>
-    `Olá *${nome}*! 📲\n\nSeu empréstimo de *R$ ${valor}* foi aprovado!\n\nUse o Pix abaixo para confirmar:\n\n\`${copiaCola}\`\n\nCopie o código acima e cole no app do seu banco.`,
+    `Olá *${nome}*! 📲\n\nSeu empréstimo de *${valor}* foi aprovado!\n\nUse o Pix abaixo para confirmar:\n\n\`${copiaCola}\`\n\nCopie o código acima e cole no app do seu banco.`,
   contrato: (nome) =>
     `📄 *Contrato de Empréstimo*\n\nOlá *${nome}*, segue em anexo o seu contrato.\n\nSe estiver de acordo, responda *DE ACORDO* neste WhatsApp para registrar o aceite digital.`,
   contratoAviso: (nome) =>
