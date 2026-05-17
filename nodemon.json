@@ -1,0 +1,18 @@
+{
+  "watch": [
+    "backend/src",
+    "backend/scripts",
+    "frontend/public",
+    "package.json",
+    ".env"
+  ],
+  "ext": "js,json,html,py",
+  "ignore": [
+    "whatsapp-session/**",
+    "backend/whatsapp-session/**",
+    "logs/**",
+    "contratos/**",
+    "uploads/**",
+    "node_modules/**"
+  ]
+}
