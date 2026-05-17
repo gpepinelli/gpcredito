@@ -16,6 +16,22 @@ function dadosPixManual() {
   return { chave: chave.trim(), nome: nome.trim() };
 }
 
+function proximaParcelaCobravel(emprestimo) {
+  if (!Array.isArray(emprestimo.parcelas)) return null;
+  return emprestimo.parcelas
+    .slice()
+    .sort((a, b) => a.numero - b.numero)
+    .find(p => p.status === 'atrasado' || p.status === 'pendente') || null;
+}
+
+function valorCobranca(emprestimo) {
+  return proximaParcelaCobravel(emprestimo)?.valor || emprestimo.valorTotal;
+}
+
+function vencimentoCobranca(emprestimo) {
+  return proximaParcelaCobravel(emprestimo)?.dataVencimento || emprestimo.dataVencimento;
+}
+
 const templates = {
   lembrete: (nome, valor, dataVencimento) =>
     `Olá *${nome}*! 👋\n\nPassando para lembrar que seu pagamento de *${valor}* vence amanhã (${dataVencimento}).\n\nPague em dia e garanta +10 pontos no seu score! 😊`,
@@ -275,12 +291,12 @@ class WhatsAppService {
 
   async enviarLembrete(cliente, emprestimo) {
     const { formatarMoeda, formatarData } = require('../../utils/calculadora');
-    return this.adapter.sendMessage(cliente.telefone, templates.lembrete(cliente.nome, formatarMoeda(emprestimo.valorTotal), formatarData(emprestimo.dataVencimento)));
+    return this.adapter.sendMessage(cliente.telefone, templates.lembrete(cliente.nome, formatarMoeda(valorCobranca(emprestimo)), formatarData(vencimentoCobranca(emprestimo))));
   }
 
   async enviarCobrancaHoje(cliente, emprestimo) {
     const { formatarMoeda } = require('../../utils/calculadora');
-    return this.adapter.sendMessage(cliente.telefone, templates.vencimentoHoje(cliente.nome, formatarMoeda(emprestimo.valorTotal)));
+    return this.adapter.sendMessage(cliente.telefone, templates.vencimentoHoje(cliente.nome, formatarMoeda(valorCobranca(emprestimo))));
   }
 
   /**
@@ -290,7 +306,7 @@ class WhatsAppService {
     const { formatarMoeda } = require('../../utils/calculadora');
     return this.adapter.sendMessage(
       cliente.telefone,
-      templates.vencimentoHoje(cliente.nome, formatarMoeda(emprestimo.valorTotal))
+      templates.vencimentoHoje(cliente.nome, formatarMoeda(valorCobranca(emprestimo)))
     );
   }
 
@@ -303,7 +319,7 @@ class WhatsAppService {
     if (pix.chave) {
       return this.adapter.sendMessage(
         cliente.telefone,
-        templates.pixManual(formatarMoeda(emprestimo.valorTotal), pix.chave, pix.nome)
+        templates.pixManual(formatarMoeda(valorCobranca(emprestimo)), pix.chave, pix.nome)
       );
     }
 
@@ -323,13 +339,13 @@ class WhatsAppService {
 
     return this.adapter.sendMessage(
       cliente.telefone,
-      templates.pixManual(formatarMoeda(emprestimo.valorTotal), pix.chave, pix.nome)
+      templates.pixManual(formatarMoeda(valorCobranca(emprestimo)), pix.chave, pix.nome)
     );
   }
 
   async enviarCobrancaAtraso(cliente, emprestimo, diasAtraso) {
     const { formatarMoeda } = require('../../utils/calculadora');
-    return this.adapter.sendMessage(cliente.telefone, templates.atraso(cliente.nome, formatarMoeda(emprestimo.valorTotal), diasAtraso));
+    return this.adapter.sendMessage(cliente.telefone, templates.atraso(cliente.nome, formatarMoeda(valorCobranca(emprestimo)), diasAtraso));
   }
 
   async enviarConfirmacao(cliente, pagamento) {

@@ -941,6 +941,7 @@ async function abrirParcelasEmprestimo(id){
     <div class="modal-title">Parcelas da operação ${emp.numeroOperacao||''}</div>
     <div class="modal-sub">${esc(emp.cliente?.nome||'Cliente')} · Contrato ${esc(emp.numeroContrato||emp.contratos?.[0]?.numeroContrato||'—')} · ${fmtMoeda(emp.valor)} principal · ${emp.juros}% ao mês sobre saldo devedor</div>
     ${aceiteManual}
+    <div class="filter-row" style="margin:0 0 14px"><button class="btn btn-ghost btn-sm" onclick="enviarCobrancaTeste('${emp.id}')">Enviar cobrança teste</button></div>
     <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
       <div class="kpi" style="padding:12px"><div class="kpi-info"><div class="kpi-label">Total</div><div class="kpi-value" style="font-size:1rem">${fmtMoeda(emp.valorTotal)}</div></div></div>
       <div class="kpi" style="padding:12px"><div class="kpi-info"><div class="kpi-label">Pago</div><div class="kpi-value" style="font-size:1rem">${fmtMoeda(totalPago)}</div></div></div>
@@ -979,6 +980,17 @@ async function marcarAceiteContrato(numeroOperacao,clienteId='',emprestimoId='')
       if(clienteId)verCliente(clienteId);
       if(emprestimoId)abrirParcelasEmprestimo(emprestimoId);
     }else toast(r.data.mensagem||'Erro ao marcar aceite.','err');
+  }catch(e){toast('Erro de conexão.','err');}
+}
+
+async function enviarCobrancaTeste(emprestimoId){
+  if(!confirm('Enviar cobrança teste por WhatsApp para este cliente?'))return;
+  try{
+    const r=await apiFetch(`/api/emprestimos/${emprestimoId}/cobranca-teste`,{method:'POST',body:JSON.stringify({})});
+    if(r.ok){
+      const parcela=r.data.parcela?` Parcela ${r.data.parcela.numero}: ${fmtMoeda(r.data.parcela.valor)}.`:'';
+      toast(`Cobrança enviada.${parcela}`,'ok');
+    }else toast(r.data.mensagem||'Erro ao enviar cobrança.','err');
   }catch(e){toast('Erro de conexão.','err');}
 }
 
