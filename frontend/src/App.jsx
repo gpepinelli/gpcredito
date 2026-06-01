@@ -28,57 +28,121 @@ import { dataCurta, moeda } from './lib/format.js';
 import { Configuracoes, RelatorioVendas, Relatorios } from './pages/reports.jsx';
 
 function Painel({ dados, resumoVendas, recarregar }) {
+  const [visao, setVisao] = useState('financeiro');
   const faturamentoVendas = Object.values(resumoVendas?.porTipo || {}).reduce((acc, item) => acc + item.faturamento, 0);
   const lucroVendas = Object.values(resumoVendas?.porTipo || {}).reduce((acc, item) => acc + item.lucro, 0);
   const alertas = dados.alertas || {};
+  const operacoesPendentes = dados.emprestimos.filter(operacaoPendente);
+  const operacoesAtrasadas = dados.emprestimos.filter((item) => item.statusOperacao === 'ATRASADO' || item.status === 'atrasado');
+  const aguardandoAceite = dados.emprestimos.filter((item) => item.statusOperacao === 'AGUARDANDO_ACEITE');
+  const aguardandoLiberacao = dados.emprestimos.filter((item) => item.statusOperacao === 'APROVADO');
+  const carteiraAberta = operacoesPendentes.reduce((acc, item) => acc + Number(item.saldoDevedor || item.valorTotal || 0), 0);
+  const vendasPorTipo = TIPOS.map((tipo) => ({ tipo, dados: resumoVendas?.porTipo?.[tipo.id] || {} }));
 
   return (
     <>
       <PageHeader
-        title="Painel"
-        subtitle="Visao consolidada da V2"
+        title="Painel operacional"
+        subtitle="Acompanhe credito e vendas em visoes separadas."
         action={<button className="iconButton" onClick={recarregar} title="Atualizar"><RefreshCw size={18} /></button>}
       />
-      <div className="statsGrid">
-        <Stat icon={Users} label="Clientes" value={dados.clientes.length} />
-        <Stat icon={BadgeDollarSign} label="Operacoes de credito" value={dados.emprestimos.length} tone="green" />
-        <Stat icon={PackagePlus} label="Produtos em estoque" value={resumoVendas?.totalProdutos || 0} tone="amber" />
-        <Stat icon={CircleDollarSign} label="Faturamento em vendas" value={moeda(faturamentoVendas)} tone="red" />
+      <div className="viewSwitch" role="tablist" aria-label="Visao do painel">
+        <button className={visao === 'financeiro' ? 'active' : ''} type="button" onClick={() => setVisao('financeiro')}>Operacoes financeiras</button>
+        <button className={visao === 'vendas' ? 'active' : ''} type="button" onClick={() => setVisao('vendas')}>Vendas e estoque</button>
       </div>
-      <div className="statsGrid compact">
-        <Stat icon={ClipboardList} label="Vencendo hoje" value={alertas.vencendoHoje || 0} tone="amber" />
-        <Stat icon={RefreshCw} label="Vencendo amanha" value={alertas.vencendoAmanha || 0} tone="blue" />
-        <Stat icon={BadgeDollarSign} label="Atrasados" value={alertas.atrasados || 0} tone="red" />
-      </div>
-      <section className="contentGrid">
-        <article className="panel">
-          <div className="panelTitle">Vendas por modulo</div>
-          <div className="moduleRows">
-            {TIPOS.map((tipo) => {
-              const Icon = tipo.icon;
-              const item = resumoVendas?.porTipo?.[tipo.id] || {};
-              return (
-                <div className="moduleRow" key={tipo.id}>
-                  <Icon size={20} />
-                  <div><strong>{tipo.label}</strong><span>{item.estoque || 0} disponiveis</span></div>
-                  <b>{moeda(item.faturamento || 0)}</b>
-                </div>
-              );
-            })}
+
+      {visao === 'financeiro' ? (
+        <>
+          <section className="dashboardHero financeHero">
+            <article>
+              <span>Carteira em aberto</span>
+              <strong>{moeda(carteiraAberta)}</strong>
+              <p>{operacoesPendentes.length} operacoes ainda em andamento.</p>
+            </article>
+            <article>
+              <span>Atencao hoje</span>
+              <strong>{(alertas.vencendoHoje || 0) + (alertas.atrasados || 0)}</strong>
+              <p>{alertas.vencendoHoje || 0} vencendo hoje e {alertas.atrasados || 0} atrasadas.</p>
+            </article>
+          </section>
+
+          <div className="statsGrid compact">
+            <Stat icon={Users} label="Clientes cadastrados" value={dados.clientes.length} />
+            <Stat icon={BadgeDollarSign} label="Operacoes pendentes" value={operacoesPendentes.length} tone="green" />
+            <Stat icon={BadgeDollarSign} label="Operacoes atrasadas" value={operacoesAtrasadas.length} tone="red" />
           </div>
-        </article>
-        <article className="panel">
-          <div className="panelTitle">Resultado</div>
-          <div className="resultBox">
-            <span>Lucro estimado em vendas</span>
-            <strong>{moeda(lucroVendas)}</strong>
+
+          <section className="contentGrid">
+            <article className="panel">
+              <div className="panelTitle">Fila financeira</div>
+              <div className="dashboardList">
+                <div><span>Vencendo hoje</span><strong>{alertas.vencendoHoje || 0}</strong></div>
+                <div><span>Vencendo amanha</span><strong>{alertas.vencendoAmanha || 0}</strong></div>
+                <div><span>Aguardando aceite</span><strong>{aguardandoAceite.length}</strong></div>
+                <div><span>Aprovadas para liberar</span><strong>{aguardandoLiberacao.length}</strong></div>
+              </div>
+            </article>
+            <article className="panel">
+              <div className="panelTitle">Resumo da carteira</div>
+              <div className="resultBox quiet">
+                <span>Total de operacoes</span>
+                <strong>{dados.emprestimos.length}</strong>
+              </div>
+              <div className="resultBox">
+                <span>Saldo estimado em aberto</span>
+                <strong>{moeda(carteiraAberta)}</strong>
+              </div>
+            </article>
+          </section>
+        </>
+      ) : (
+        <>
+          <section className="dashboardHero salesHero">
+            <article>
+              <span>Faturamento em vendas</span>
+              <strong>{moeda(faturamentoVendas)}</strong>
+              <p>Carros, motos e celulares vendidos no modulo de produtos.</p>
+            </article>
+            <article>
+              <span>Lucro estimado</span>
+              <strong>{moeda(lucroVendas)}</strong>
+              <p>Baseado no custo cadastrado e valor final das vendas.</p>
+            </article>
+          </section>
+
+          <div className="statsGrid compact">
+            <Stat icon={PackagePlus} label="Produtos em estoque" value={resumoVendas?.totalProdutos || 0} tone="amber" />
+            <Stat icon={CircleDollarSign} label="Faturamento" value={moeda(faturamentoVendas)} tone="green" />
+            <Stat icon={CircleDollarSign} label="Lucro estimado" value={moeda(lucroVendas)} tone="blue" />
           </div>
-          <div className="resultBox quiet">
-            <span>Operacoes pendentes</span>
-            <strong>{dados.emprestimos.filter(operacaoPendente).length}</strong>
-          </div>
-        </article>
-      </section>
+
+          <section className="contentGrid">
+            <article className="panel">
+              <div className="panelTitle">Vendas por modulo</div>
+              <div className="moduleRows">
+                {vendasPorTipo.map(({ tipo, dados: item }) => {
+                  const Icon = tipo.icon;
+                  return (
+                    <div className="moduleRow" key={tipo.id}>
+                      <Icon size={20} />
+                      <div><strong>{tipo.label}</strong><span>{item.estoque || 0} disponiveis</span></div>
+                      <b>{moeda(item.faturamento || 0)}</b>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+            <article className="panel">
+              <div className="panelTitle">Resultado de vendas</div>
+              <div className="dashboardList">
+                {vendasPorTipo.map(({ tipo, dados: item }) => (
+                  <div key={tipo.id}><span>{tipo.label}</span><strong>{moeda(item.lucro || 0)}</strong></div>
+                ))}
+              </div>
+            </article>
+          </section>
+        </>
+      )}
     </>
   );
 }
