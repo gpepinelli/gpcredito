@@ -372,6 +372,91 @@ class EmprestimoService {
     return { vencendoHoje, vencendoAmanha, atrasados };
   }
 
+  async painelFinanceiro() {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const statusComDinheiroNaRua = ['LIBERADO', 'EM_DIA', 'ATRASADO', 'QUITADO'];
+    const emprestimos = await prisma.emprestimo.findMany({
+      where: { statusOperacao: { notIn: STATUS_OPERACAO_FINALIZADA_SEM_RENOVACAO } },
+      include: {
+        cliente: true,
+        pagamentos: { where: { status: 'confirmado' }, include: { parcela: true } },
+        parcelas: { orderBy: { numero: 'asc' } },
+      },
+      orderBy: { dataEmprestimo: 'desc' },
+    });
+
+    const resumo = {
+      totalColocadoRua: 0,
+      totalContratado: 0,
+      totalRecebido: 0,
+      lucroRecebido: 0,
+      valorEmAberto: 0,
+      valorAtrasado: 0,
+      jurosAReceber: 0,
+      operacoesAtivas: 0,
+      operacoesAtrasadas: 0,
+      parcelasAtrasadas: 0,
+      aguardandoAceite: 0,
+      aguardandoLiberacao: 0,
+    };
+
+    const ultimasOperacoes = [];
+
+    for (const emprestimo of emprestimos) {
+      const statusOperacao = emprestimo.statusOperacao;
+      const dinheiroNaRua = statusComDinheiroNaRua.includes(statusOperacao);
+      const ativo = STATUS_OPERACAO_ABERTA.includes(statusOperacao);
+      const totalPago = emprestimo.pagamentos.reduce((acc, pagamento) => acc + Number(pagamento.valorPago || 0), 0);
+      const saldoAberto = Math.max(0, Number(emprestimo.valorTotal || 0) - totalPago);
+      const lucroRecebidoOperacao = emprestimo.pagamentos.reduce((acc, pagamento) => acc + calcularJurosRecebidoPagamento({ ...pagamento, emprestimo }), 0);
+      const jurosTotalOperacao = Math.max(0, Number(emprestimo.valorTotal || 0) - Number(emprestimo.valor || 0));
+      const parcelasAtrasadas = emprestimo.parcelas.filter((parcela) => parcela.status !== 'pago' && new Date(parcela.dataVencimento) < hoje);
+      const valorParcelasAtrasadas = parcelasAtrasadas.reduce((acc, parcela) => acc + Number(parcela.valor || 0), 0);
+
+      if (dinheiroNaRua) {
+        resumo.totalColocadoRua += Number(emprestimo.valor || 0);
+        resumo.totalContratado += Number(emprestimo.valorTotal || 0);
+        resumo.totalRecebido += totalPago;
+        resumo.lucroRecebido += lucroRecebidoOperacao;
+      }
+
+      if (ativo) {
+        resumo.operacoesAtivas += 1;
+        resumo.valorEmAberto += saldoAberto;
+        resumo.jurosAReceber += Math.max(0, jurosTotalOperacao - lucroRecebidoOperacao);
+      }
+
+      if (statusOperacao === 'ATRASADO' || parcelasAtrasadas.length > 0) {
+        resumo.operacoesAtrasadas += 1;
+        resumo.parcelasAtrasadas += parcelasAtrasadas.length;
+        resumo.valorAtrasado += valorParcelasAtrasadas || saldoAberto;
+      }
+
+      if (statusOperacao === 'AGUARDANDO_ACEITE') resumo.aguardandoAceite += 1;
+      if (statusOperacao === 'APROVADO') resumo.aguardandoLiberacao += 1;
+
+      if (ultimasOperacoes.length < 6) {
+        ultimasOperacoes.push({
+          id: emprestimo.id,
+          numeroOperacao: emprestimo.numeroOperacao,
+          cliente: emprestimo.cliente?.nome || null,
+          valor: emprestimo.valor,
+          valorTotal: emprestimo.valorTotal,
+          saldoAberto,
+          statusOperacao,
+          dataVencimento: emprestimo.dataVencimento,
+        });
+      }
+    }
+
+    Object.keys(resumo).forEach((chave) => {
+      if (typeof resumo[chave] === 'number') resumo[chave] = Number(resumo[chave].toFixed(2));
+    });
+
+    return { resumo, ultimasOperacoes };
+  }
+
   async aceitarManual(emprestimoId) {
     const emprestimo = await prisma.emprestimo.findUnique({
       where: { id: emprestimoId },

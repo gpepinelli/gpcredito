@@ -100,6 +100,7 @@ nav { padding: 10px 0; display: grid; gap: 6px; overflow-y: auto; }
 .commandTabs button.active { background: white; color: #0f172a; box-shadow: 0 1px 2px rgba(15, 23, 42, .08), 0 10px 24px rgba(15, 23, 42, .08); }
 .commandCenter { display: grid; gap: 16px; }
 .commandHero, .salesCommand { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(280px, .85fr); gap: 16px; }
+.ownerDashboard { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(420px, .8fr); gap: 16px; }
 .ledgerPanel { min-height: 260px; border: 1px solid rgba(255,255,255,.08); border-radius: 8px; padding: 22px; color: white; background: radial-gradient(circle at 92% 8%, rgba(46,204,143,.24), transparent 30%), linear-gradient(135deg, #0e1117 0%, #10201d 58%, #0f766e 140%); box-shadow: 0 18px 46px rgba(15, 23, 42, .16); display: grid; align-content: space-between; gap: 18px; }
 .salesLedger { background: radial-gradient(circle at 88% 10%, rgba(56,189,248,.22), transparent 32%), linear-gradient(135deg, #0e1117 0%, #102036 62%, #075985 140%); }
 .ledgerTop { display: flex; align-items: center; justify-content: space-between; color: rgba(255,255,255,.68); font-weight: 900; }
@@ -118,6 +119,15 @@ nav { padding: 10px 0; display: grid; gap: 6px; overflow-y: auto; }
 .priorityItem.danger { background: #fff1f2; border-color: #fecdd3; color: #be123c; }
 .priorityItem.warn { background: #fffbeb; border-color: #fde68a; color: #b45309; }
 .priorityItem.ok { background: #ecfdf5; border-color: #bbf7d0; color: #15803d; }
+.moneySnapshot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.moneyTile { min-height: 124px; border-radius: 8px; padding: 16px; border: 1px solid var(--border); background: var(--surface); box-shadow: 0 1px 3px rgba(15, 23, 42, .06), 0 10px 30px rgba(15, 23, 42, .04); display: grid; align-content: space-between; gap: 8px; }
+.moneyTile span { color: var(--muted); font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; }
+.moneyTile strong { font-size: clamp(20px, 2.2vw, 28px); letter-spacing: 0; line-height: 1.05; }
+.moneyTile small { color: var(--muted); font-weight: 700; }
+.moneyTile.received { border-color: #bbf7d0; background: #f0fdf4; }
+.moneyTile.profit { border-color: #bfdbfe; background: #eff6ff; }
+.moneyTile.overdue { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+.moneyTile.open { border-color: #fde68a; background: #fffbeb; }
 .operationWorkbench { display: grid; grid-template-columns: minmax(290px, .85fr) minmax(0, 1.45fr); gap: 16px; }
 .queueGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .queueGrid div { min-height: 86px; border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: #f8fafc; display: grid; align-content: space-between; gap: 8px; }
@@ -344,11 +354,11 @@ tbody tr:hover td {
   .menuOpen .sidebarBackdrop { display: block; }
   .mobileClose { margin-left: auto; width: 34px; height: 34px; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; background: rgba(255,255,255,.06); color: white; display: grid; place-items: center; }
   .workspace { width: 100%; margin-left: 0; padding: 16px; }
-  .statsGrid, .statsGrid.compact, .contentGrid, .dashboardHero, .commandHero, .salesCommand, .operationWorkbench, .inlineForm, .formGrid, .summaryStrip, .optionalDocs, .docUploadGrid, .settingsGrid { grid-template-columns: 1fr; }
+  .statsGrid, .statsGrid.compact, .contentGrid, .dashboardHero, .commandHero, .ownerDashboard, .salesCommand, .operationWorkbench, .inlineForm, .formGrid, .summaryStrip, .optionalDocs, .docUploadGrid, .settingsGrid { grid-template-columns: 1fr; }
   .viewSwitch { display: grid; grid-template-columns: 1fr; width: 100%; }
   .commandTabs { grid-template-columns: 1fr; }
   .ledgerPanel { min-height: 220px; padding: 18px; }
-  .ledgerStats, .queueGrid { grid-template-columns: 1fr; }
+  .ledgerStats, .queueGrid, .moneySnapshot { grid-template-columns: 1fr; }
   .compactRow { grid-template-columns: 1fr; gap: 6px; align-items: start; }
   .salesLane { grid-template-columns: 28px 1fr; }
   .salesLane strong, .salesLane small { grid-column: 2; }

@@ -99,6 +99,7 @@ router.get('/emprestimos', emprestimoController.listar);
 router.delete('/emprestimos/:id', requireDeletePassword, emprestimoController.excluir);
 router.get('/inadimplentes', emprestimoController.listarInadimplentes);
 router.get('/lucro', emprestimoController.lucroTotal);
+router.get('/painel/financeiro', emprestimoController.painelFinanceiro);
 router.get('/emprestimos/alertas', emprestimoController.alertas);
 router.get('/relatorio/mensal', emprestimoController.metricasMensais);
 router.get('/relatorio/export', emprestimoController.exportarDados);

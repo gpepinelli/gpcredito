@@ -83,6 +83,16 @@ class EmprestimoController {
     }
   }
 
+  async painelFinanceiro(req, res) {
+    try {
+      const financeiro = await emprestimoService.painelFinanceiro();
+      return res.json({ sucesso: true, financeiro });
+    } catch (error) {
+      logger.error('Erro ao carregar painel financeiro', { error: error.message });
+      return res.status(500).json({ sucesso: false, mensagem: 'Erro interno do servidor' });
+    }
+  }
+
   async aceitarManual(req, res) {
     try {
       const emprestimo = await emprestimoService.aceitarManual(req.params.id);

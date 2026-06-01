@@ -32,15 +32,17 @@ function Painel({ dados, resumoVendas, recarregar }) {
   const faturamentoVendas = Object.values(resumoVendas?.porTipo || {}).reduce((acc, item) => acc + item.faturamento, 0);
   const lucroVendas = Object.values(resumoVendas?.porTipo || {}).reduce((acc, item) => acc + item.lucro, 0);
   const alertas = dados.alertas || {};
+  const financeiro = dados.financeiro?.resumo || {};
+  const ultimasFinanceiro = dados.financeiro?.ultimasOperacoes || [];
   const operacoesPendentes = dados.emprestimos.filter(operacaoPendente);
   const operacoesAtrasadas = dados.emprestimos.filter((item) => item.statusOperacao === 'ATRASADO' || item.status === 'atrasado');
   const aguardandoAceite = dados.emprestimos.filter((item) => item.statusOperacao === 'AGUARDANDO_ACEITE');
   const aguardandoLiberacao = dados.emprestimos.filter((item) => item.statusOperacao === 'APROVADO');
-  const carteiraAberta = operacoesPendentes.reduce((acc, item) => acc + Number(item.saldoDevedor || item.valorTotal || 0), 0);
+  const carteiraAberta = financeiro.valorEmAberto ?? operacoesPendentes.reduce((acc, item) => acc + Number(item.saldoDevedor || item.valorTotal || 0), 0);
   const vendasPorTipo = TIPOS.map((tipo) => ({ tipo, dados: resumoVendas?.porTipo?.[tipo.id] || {} }));
-  const ultimasOperacoes = [...dados.emprestimos]
+  const ultimasOperacoes = (ultimasFinanceiro.length ? ultimasFinanceiro : [...dados.emprestimos]
     .sort((a, b) => new Date(b.criadoEm || b.dataCriacao || 0) - new Date(a.criadoEm || a.dataCriacao || 0))
-    .slice(0, 5);
+    .slice(0, 5));
 
   return (
     <>
@@ -60,37 +62,37 @@ function Painel({ dados, resumoVendas, recarregar }) {
 
       {visao === 'financeiro' ? (
         <div className="commandCenter">
-          <section className="commandHero">
+          <section className="ownerDashboard">
             <article className="ledgerPanel">
               <div className="ledgerTop">
-                <span>Carteira ativa</span>
+                <span>Dinheiro colocado na rua</span>
                 <BadgeDollarSign size={22} />
               </div>
-              <strong>{moeda(carteiraAberta)}</strong>
-              <p>{operacoesPendentes.length} operacoes pendentes em {dados.clientes.length} clientes cadastrados.</p>
+              <strong>{moeda(financeiro.totalColocadoRua || 0)}</strong>
+              <p>Total principal efetivamente liberado em operacoes de credito.</p>
               <div className="ledgerStats">
-                <div><span>Hoje</span><b>{alertas.vencendoHoje || 0}</b></div>
-                <div><span>Amanha</span><b>{alertas.vencendoAmanha || 0}</b></div>
-                <div><span>Atrasadas</span><b>{operacoesAtrasadas.length}</b></div>
+                <div><span>Total contratado</span><b>{moeda(financeiro.totalContratado || 0)}</b></div>
+                <div><span>Em aberto</span><b>{moeda(carteiraAberta || 0)}</b></div>
+                <div><span>Juros a receber</span><b>{moeda(financeiro.jurosAReceber || 0)}</b></div>
               </div>
             </article>
 
-            <aside className="priorityPanel">
-              <div className="panelTitle">Prioridade agora</div>
-              <div className="priorityItem danger"><span>Atrasados</span><strong>{operacoesAtrasadas.length}</strong></div>
-              <div className="priorityItem warn"><span>Aguardando aceite</span><strong>{aguardandoAceite.length}</strong></div>
-              <div className="priorityItem ok"><span>Prontas para liberar</span><strong>{aguardandoLiberacao.length}</strong></div>
+            <aside className="moneySnapshot">
+              <div className="moneyTile received"><span>Recebido</span><strong>{moeda(financeiro.totalRecebido || 0)}</strong><small>Pagamentos confirmados</small></div>
+              <div className="moneyTile profit"><span>Lucro gerado</span><strong>{moeda(financeiro.lucroRecebido || 0)}</strong><small>Juros ja recebidos</small></div>
+              <div className="moneyTile overdue"><span>Em atraso</span><strong>{moeda(financeiro.valorAtrasado || 0)}</strong><small>{financeiro.parcelasAtrasadas || 0} parcela(s)</small></div>
+              <div className="moneyTile open"><span>Falta receber</span><strong>{moeda(carteiraAberta || 0)}</strong><small>{financeiro.operacoesAtivas || 0} operacao(oes)</small></div>
             </aside>
           </section>
 
           <section className="operationWorkbench">
             <article className="panel">
-              <div className="panelTitle">Fila operacional</div>
+              <div className="panelTitle">Situacao operacional</div>
               <div className="queueGrid">
                 <div><ClipboardList size={18} /><span>Vencendo hoje</span><strong>{alertas.vencendoHoje || 0}</strong></div>
                 <div><RefreshCw size={18} /><span>Vencendo amanha</span><strong>{alertas.vencendoAmanha || 0}</strong></div>
-                <div><BadgeDollarSign size={18} /><span>Aguardando aceite</span><strong>{aguardandoAceite.length}</strong></div>
-                <div><Check size={18} /><span>Aprovadas para liberar</span><strong>{aguardandoLiberacao.length}</strong></div>
+                <div><BadgeDollarSign size={18} /><span>Aguardando aceite</span><strong>{financeiro.aguardandoAceite ?? aguardandoAceite.length}</strong></div>
+                <div><Check size={18} /><span>Aprovadas para liberar</span><strong>{financeiro.aguardandoLiberacao ?? aguardandoLiberacao.length}</strong></div>
               </div>
             </article>
 
@@ -102,7 +104,7 @@ function Painel({ dados, resumoVendas, recarregar }) {
                   <div className="compactRow" key={item.id}>
                     <div>
                       <strong>{item.numeroOperacao || '-'}</strong>
-                      <span>{item.cliente?.nome || 'Cliente nao informado'}</span>
+                      <span>{item.cliente?.nome || item.cliente || 'Cliente nao informado'}</span>
                     </div>
                     <b>{moeda(item.valorTotal || item.valor || 0)}</b>
                     <StatusBadge status={item.statusOperacao || item.status} />
@@ -849,7 +851,7 @@ function ModuloVendas({ tipo, produtos, vendas, salvarProduto, venderProduto, ex
 export default function App() {
   const [autenticado, setAutenticado] = useState(Boolean(localStorage.getItem('gp_token')));
   const [active, setActive] = useState(localStorage.getItem('gp_active_tab') || 'painel');
-  const [dados, setDados] = useState({ clientes: [], emprestimos: [], produtos: [], vendas: [], alertas: null });
+  const [dados, setDados] = useState({ clientes: [], emprestimos: [], produtos: [], vendas: [], alertas: null, financeiro: null });
   const [resumoVendas, setResumoVendas] = useState(null);
   const [paginacaoCredito, setPaginacaoCredito] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
   const [paginacaoClientes, setPaginacaoClientes] = useState({ page: 1, limit: 50, total: 0, totalPages: 1 });
@@ -898,7 +900,7 @@ export default function App() {
   function encerrarSessao() {
     localStorage.removeItem('gp_token');
     setAutenticado(false);
-    setDados({ clientes: [], emprestimos: [], produtos: [], vendas: [], alertas: null });
+    setDados({ clientes: [], emprestimos: [], produtos: [], vendas: [], alertas: null, financeiro: null });
     setResumoVendas(null);
   }
 
@@ -914,13 +916,14 @@ export default function App() {
       Object.entries(filtrosClientes).forEach(([chave, valor]) => {
         if (valor !== '' && valor !== null && valor !== undefined) paramsClientes.set(chave, valor);
       });
-      const [clientes, emprestimos, produtos, vendas, resumo, alertas] = await Promise.all([
+      const [clientes, emprestimos, produtos, vendas, resumo, alertas, financeiro] = await Promise.all([
         api(`/clientes?${paramsClientes.toString()}`),
         api(`/emprestimos?${paramsCredito.toString()}`),
         api('/produtos-venda'),
         api('/vendas-produto'),
         api('/vendas/resumo'),
         api('/emprestimos/alertas'),
+        api('/painel/financeiro'),
       ]);
       setDados({
         clientes: clientes.clientes || [],
@@ -928,6 +931,7 @@ export default function App() {
         produtos: produtos.produtos || [],
         vendas: vendas.vendas || [],
         alertas: alertas.alertas || null,
+        financeiro: financeiro.financeiro || null,
       });
       setPaginacaoCredito({
         page: emprestimos.page || 1,
