@@ -170,7 +170,7 @@ O backend serve `frontend/dist` quando o build existe.
 - Renegociacao de prazo com registro em log.
 - Cobranca WhatsApp em lote para operacoes selecionadas.
 - Linhas atrasadas destacadas.
-- Aba "Para fazer hoje" com vencimentos, atrasos, contratos aguardando aceite e operacoes aprovadas para liberar.
+- Aba "Agenda do Dia" com vencimentos, atrasos, contratos aguardando aceite e operacoes aprovadas para liberar.
 
 ### Orcamentos
 

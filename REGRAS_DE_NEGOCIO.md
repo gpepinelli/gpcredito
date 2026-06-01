@@ -279,7 +279,7 @@ Valor da parcela: 100,00
   - senha de exclusao
   - segredo do token
   - adaptador/credenciais externas do WhatsApp
-- "Para fazer hoje" agrupa:
+- "Agenda do Dia" agrupa:
   - vencendo hoje
   - atrasados
   - aguardando aceite

@@ -317,6 +317,14 @@ export function ClienteDetalheModal({ clienteId, onClose, onDocumentoAlterado, o
 
   const cliente = dados?.cliente;
   const abas = ['dados', 'score', 'operacoes', 'parcelas', 'contratos', 'documentos'];
+  const labelsAbas = {
+    dados: 'Dados',
+    score: 'Score',
+    operacoes: 'Operacoes',
+    parcelas: 'Parcelas',
+    contratos: 'Contratos',
+    documentos: 'Documentos',
+  };
 
   return (
     <Modal aberto={Boolean(clienteId)} titulo={cliente?.nome || 'Cliente'} subtitulo={cliente ? `${cliente.telefone} - Score ${cliente.score}` : 'Carregando dados do cliente.'} icon={Users} onClose={onClose} size="modalWide">
@@ -333,7 +341,7 @@ export function ClienteDetalheModal({ clienteId, onClose, onDocumentoAlterado, o
             <button className="primaryButton" onClick={() => onNovaOperacao?.(cliente)}><Plus size={16} /> Nova operacao</button>
             <button className="ghostButton" onClick={() => window.print()}><FileText size={16} /> Imprimir</button>
           </div>
-          <div className="tabs">{abas.map((item) => <button key={item} className={aba === item ? 'active' : ''} onClick={() => setAba(item)}>{item}</button>)}</div>
+          <div className="tabs">{abas.map((item) => <button key={item} className={aba === item ? 'active' : ''} onClick={() => setAba(item)}>{labelsAbas[item]}</button>)}</div>
           {aba === 'dados' && (
             <>
               <ScoreBar score={cliente.score} />

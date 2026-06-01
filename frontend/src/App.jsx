@@ -48,15 +48,15 @@ function Painel({ dados, resumoVendas, recarregar }) {
     <>
       <PageHeader
         title="Painel"
-        subtitle="Central de comando da operacao."
+        subtitle="Resumo financeiro, carteira ativa e prioridades operacionais."
         action={<button className="iconButton" onClick={recarregar} title="Atualizar"><RefreshCw size={18} /></button>}
       />
       <div className="commandTabs" role="tablist" aria-label="Visao do painel">
         <button className={visao === 'financeiro' ? 'active' : ''} type="button" onClick={() => setVisao('financeiro')}>
-          <BadgeDollarSign size={17} /> Operacoes financeiras
+          <BadgeDollarSign size={17} /> Operacoes Financeiras
         </button>
         <button className={visao === 'vendas' ? 'active' : ''} type="button" onClick={() => setVisao('vendas')}>
-          <PackagePlus size={17} /> Vendas e estoque
+          <PackagePlus size={17} /> Vendas e Estoque
         </button>
       </div>
 
@@ -65,39 +65,39 @@ function Painel({ dados, resumoVendas, recarregar }) {
           <section className="ownerDashboard">
             <article className="ledgerPanel">
               <div className="ledgerTop">
-                <span>Dinheiro colocado na rua</span>
+                <span>Capital Liberado</span>
                 <BadgeDollarSign size={22} />
               </div>
               <strong>{moeda(financeiro.totalColocadoRua || 0)}</strong>
-              <p>Total principal efetivamente liberado em operacoes de credito.</p>
+              <p>Total principal liberado em operacoes de credito.</p>
               <div className="ledgerStats">
-                <div><span>Total contratado</span><b>{moeda(financeiro.totalContratado || 0)}</b></div>
-                <div><span>Em aberto</span><b>{moeda(carteiraAberta || 0)}</b></div>
-                <div><span>Juros a receber</span><b>{moeda(financeiro.jurosAReceber || 0)}</b></div>
+                <div><span>Total Contratado</span><b>{moeda(financeiro.totalContratado || 0)}</b></div>
+                <div><span>Em Aberto</span><b>{moeda(carteiraAberta || 0)}</b></div>
+                <div><span>Juros a Receber</span><b>{moeda(financeiro.jurosAReceber || 0)}</b></div>
               </div>
             </article>
 
             <aside className="moneySnapshot">
               <div className="moneyTile received"><span>Recebido</span><strong>{moeda(financeiro.totalRecebido || 0)}</strong><small>Pagamentos confirmados</small></div>
-              <div className="moneyTile profit"><span>Lucro gerado</span><strong>{moeda(financeiro.lucroRecebido || 0)}</strong><small>Juros ja recebidos</small></div>
-              <div className="moneyTile overdue"><span>Em atraso</span><strong>{moeda(financeiro.valorAtrasado || 0)}</strong><small>{financeiro.parcelasAtrasadas || 0} parcela(s)</small></div>
-              <div className="moneyTile open"><span>Falta receber</span><strong>{moeda(carteiraAberta || 0)}</strong><small>{financeiro.operacoesAtivas || 0} operacao(oes)</small></div>
+              <div className="moneyTile profit"><span>Lucro Gerado</span><strong>{moeda(financeiro.lucroRecebido || 0)}</strong><small>Juros ja recebidos</small></div>
+              <div className="moneyTile overdue"><span>Em Atraso</span><strong>{moeda(financeiro.valorAtrasado || 0)}</strong><small>{financeiro.parcelasAtrasadas || 0} parcela(s)</small></div>
+              <div className="moneyTile open"><span>Saldo a Receber</span><strong>{moeda(carteiraAberta || 0)}</strong><small>{financeiro.operacoesAtivas || 0} operacao(oes)</small></div>
             </aside>
           </section>
 
           <section className="operationWorkbench">
             <article className="panel">
-              <div className="panelTitle">Situacao operacional</div>
+              <div className="panelTitle">Situacao Operacional</div>
               <div className="queueGrid">
-                <div><ClipboardList size={18} /><span>Vencendo hoje</span><strong>{alertas.vencendoHoje || 0}</strong></div>
-                <div><RefreshCw size={18} /><span>Vencendo amanha</span><strong>{alertas.vencendoAmanha || 0}</strong></div>
-                <div><BadgeDollarSign size={18} /><span>Aguardando aceite</span><strong>{financeiro.aguardandoAceite ?? aguardandoAceite.length}</strong></div>
-                <div><Check size={18} /><span>Aprovadas para liberar</span><strong>{financeiro.aguardandoLiberacao ?? aguardandoLiberacao.length}</strong></div>
+                <div><ClipboardList size={18} /><span>Vencendo Hoje</span><strong>{alertas.vencendoHoje || 0}</strong></div>
+                <div><RefreshCw size={18} /><span>Vencendo Amanha</span><strong>{alertas.vencendoAmanha || 0}</strong></div>
+                <div><BadgeDollarSign size={18} /><span>Aguardando Aceite</span><strong>{financeiro.aguardandoAceite ?? aguardandoAceite.length}</strong></div>
+                <div><Check size={18} /><span>Aprovadas para Liberar</span><strong>{financeiro.aguardandoLiberacao ?? aguardandoLiberacao.length}</strong></div>
               </div>
             </article>
 
             <article className="panel operationPreview">
-              <div className="panelTitle">Ultimas operacoes</div>
+              <div className="panelTitle">Ultimas Operacoes</div>
               <div className="compactTable">
                 {ultimasOperacoes.length === 0 && <span className="hint">Nenhuma operacao cadastrada.</span>}
                 {ultimasOperacoes.map((item) => (
@@ -189,7 +189,7 @@ function TarefasHoje({ emprestimos, abrirPagar, aceitarManual, liberarDinheiro, 
 
   return (
     <>
-      <PageHeader title="Para fazer hoje" subtitle="Pendencias operacionais do dia" />
+      <PageHeader title="Agenda do Dia" subtitle="Pendencias operacionais do dia" />
       <section className="contentGrid">
         {secoes.map(([titulo, lista]) => (
           <article className="panel" key={titulo}>
@@ -302,7 +302,7 @@ function Clientes({ clientes, salvarCliente, excluirCliente, verCliente, onUnaut
   }, [busca]);
   return (
     <>
-      <PageHeader title="Clientes" subtitle="Base herdada da V1" action={<ClienteForm onSalvar={salvarCliente} onUnauthorized={onUnauthorized} />} />
+      <PageHeader title="Clientes" subtitle="Cadastro, documentos e historico financeiro." action={<ClienteForm onSalvar={salvarCliente} onUnauthorized={onUnauthorized} />} />
       <SearchBox value={busca} onChange={setBusca} />
       <div className="tablePanel">
         <table className="responsiveTable">
@@ -453,7 +453,7 @@ function Credito({ emprestimos, clientes, salvarCredito, abrirPagar, abrirParcel
 
   return (
     <>
-      <PageHeader title="Credito" subtitle="Operacoes financeiras da V1 preservadas" action={<CreditoForm clientes={clientes} onSalvar={salvarCredito} clienteInicial={clienteInicial} configuracoes={configuracoes} />} />
+      <PageHeader title="Credito" subtitle="Operacoes financeiras, parcelas, pagamentos e contratos." action={<CreditoForm clientes={clientes} onSalvar={salvarCredito} clienteInicial={clienteInicial} configuracoes={configuracoes} />} />
       <div className="inlineForm tableWithTop">
         <input value={filtros.busca} onChange={(event) => alterarFiltro('busca', event.target.value)} placeholder="Buscar cliente, telefone ou operacao" />
         <select value={filtros.statusOperacao} onChange={(event) => alterarFiltro('statusOperacao', event.target.value)}>

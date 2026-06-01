@@ -65,7 +65,7 @@ export function Shell({ children, active, setActive, onLogout, badges, globalSea
     {
       titulo: 'Credito',
       itens: [
-        { id: 'tarefas', label: 'Para fazer hoje', icon: ClipboardList, badge: badges.tarefas },
+        { id: 'tarefas', label: 'Agenda do Dia', icon: ClipboardList, badge: badges.tarefas },
         { id: 'orcamentos', label: 'Orcamento', icon: Calculator },
         { id: 'credito', label: 'Operacoes', icon: BadgeDollarSign, badge: badges.emprestimos },
         { id: 'relatorios', label: 'Relatorio financeiro', icon: FileText },
@@ -95,13 +95,13 @@ export function Shell({ children, active, setActive, onLogout, badges, globalSea
     <div className={menuAberto ? 'appShell menuOpen' : 'appShell'}>
       <header className="mobileTopbar">
         <button className="iconButton" onClick={() => setMenuAberto(true)} title="Abrir menu"><Menu size={20} /></button>
-        <div><strong>GPCredito</strong><span>V2 operacional</span></div>
+        <div><strong>GPCredito</strong><span>Painel administrativo</span></div>
       </header>
       <button className="sidebarBackdrop" type="button" onClick={() => setMenuAberto(false)} aria-label="Fechar menu" />
       <aside className="sidebar">
         <div className="logo">
           <div className="logoIcon"><ShieldCheck size={20} /></div>
-          <div><strong>GPCredito</strong><span>V2 operacional</span></div>
+          <div><strong>GPCredito</strong><span>Painel administrativo</span></div>
           <button className="mobileClose" onClick={() => setMenuAberto(false)} title="Fechar menu"><X size={18} /></button>
         </div>
         <nav>
