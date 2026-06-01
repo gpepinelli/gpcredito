@@ -38,102 +38,124 @@ function Painel({ dados, resumoVendas, recarregar }) {
   const aguardandoLiberacao = dados.emprestimos.filter((item) => item.statusOperacao === 'APROVADO');
   const carteiraAberta = operacoesPendentes.reduce((acc, item) => acc + Number(item.saldoDevedor || item.valorTotal || 0), 0);
   const vendasPorTipo = TIPOS.map((tipo) => ({ tipo, dados: resumoVendas?.porTipo?.[tipo.id] || {} }));
+  const ultimasOperacoes = [...dados.emprestimos]
+    .sort((a, b) => new Date(b.criadoEm || b.dataCriacao || 0) - new Date(a.criadoEm || a.dataCriacao || 0))
+    .slice(0, 5);
 
   return (
     <>
       <PageHeader
-        title="Painel operacional"
-        subtitle="Acompanhe credito e vendas em visoes separadas."
+        title="Painel"
+        subtitle="Central de comando da operacao."
         action={<button className="iconButton" onClick={recarregar} title="Atualizar"><RefreshCw size={18} /></button>}
       />
-      <div className="viewSwitch" role="tablist" aria-label="Visao do painel">
-        <button className={visao === 'financeiro' ? 'active' : ''} type="button" onClick={() => setVisao('financeiro')}>Operacoes financeiras</button>
-        <button className={visao === 'vendas' ? 'active' : ''} type="button" onClick={() => setVisao('vendas')}>Vendas e estoque</button>
+      <div className="commandTabs" role="tablist" aria-label="Visao do painel">
+        <button className={visao === 'financeiro' ? 'active' : ''} type="button" onClick={() => setVisao('financeiro')}>
+          <BadgeDollarSign size={17} /> Operacoes financeiras
+        </button>
+        <button className={visao === 'vendas' ? 'active' : ''} type="button" onClick={() => setVisao('vendas')}>
+          <PackagePlus size={17} /> Vendas e estoque
+        </button>
       </div>
 
       {visao === 'financeiro' ? (
-        <>
-          <section className="dashboardHero financeHero">
-            <article>
-              <span>Carteira em aberto</span>
+        <div className="commandCenter">
+          <section className="commandHero">
+            <article className="ledgerPanel">
+              <div className="ledgerTop">
+                <span>Carteira ativa</span>
+                <BadgeDollarSign size={22} />
+              </div>
               <strong>{moeda(carteiraAberta)}</strong>
-              <p>{operacoesPendentes.length} operacoes ainda em andamento.</p>
+              <p>{operacoesPendentes.length} operacoes pendentes em {dados.clientes.length} clientes cadastrados.</p>
+              <div className="ledgerStats">
+                <div><span>Hoje</span><b>{alertas.vencendoHoje || 0}</b></div>
+                <div><span>Amanha</span><b>{alertas.vencendoAmanha || 0}</b></div>
+                <div><span>Atrasadas</span><b>{operacoesAtrasadas.length}</b></div>
+              </div>
             </article>
-            <article>
-              <span>Atencao hoje</span>
-              <strong>{(alertas.vencendoHoje || 0) + (alertas.atrasados || 0)}</strong>
-              <p>{alertas.vencendoHoje || 0} vencendo hoje e {alertas.atrasados || 0} atrasadas.</p>
-            </article>
+
+            <aside className="priorityPanel">
+              <div className="panelTitle">Prioridade agora</div>
+              <div className="priorityItem danger"><span>Atrasados</span><strong>{operacoesAtrasadas.length}</strong></div>
+              <div className="priorityItem warn"><span>Aguardando aceite</span><strong>{aguardandoAceite.length}</strong></div>
+              <div className="priorityItem ok"><span>Prontas para liberar</span><strong>{aguardandoLiberacao.length}</strong></div>
+            </aside>
           </section>
 
-          <div className="statsGrid compact">
-            <Stat icon={Users} label="Clientes cadastrados" value={dados.clientes.length} />
-            <Stat icon={BadgeDollarSign} label="Operacoes pendentes" value={operacoesPendentes.length} tone="green" />
-            <Stat icon={BadgeDollarSign} label="Operacoes atrasadas" value={operacoesAtrasadas.length} tone="red" />
-          </div>
-
-          <section className="contentGrid">
+          <section className="operationWorkbench">
             <article className="panel">
-              <div className="panelTitle">Fila financeira</div>
-              <div className="dashboardList">
-                <div><span>Vencendo hoje</span><strong>{alertas.vencendoHoje || 0}</strong></div>
-                <div><span>Vencendo amanha</span><strong>{alertas.vencendoAmanha || 0}</strong></div>
-                <div><span>Aguardando aceite</span><strong>{aguardandoAceite.length}</strong></div>
-                <div><span>Aprovadas para liberar</span><strong>{aguardandoLiberacao.length}</strong></div>
+              <div className="panelTitle">Fila operacional</div>
+              <div className="queueGrid">
+                <div><ClipboardList size={18} /><span>Vencendo hoje</span><strong>{alertas.vencendoHoje || 0}</strong></div>
+                <div><RefreshCw size={18} /><span>Vencendo amanha</span><strong>{alertas.vencendoAmanha || 0}</strong></div>
+                <div><BadgeDollarSign size={18} /><span>Aguardando aceite</span><strong>{aguardandoAceite.length}</strong></div>
+                <div><Check size={18} /><span>Aprovadas para liberar</span><strong>{aguardandoLiberacao.length}</strong></div>
               </div>
             </article>
-            <article className="panel">
-              <div className="panelTitle">Resumo da carteira</div>
-              <div className="resultBox quiet">
-                <span>Total de operacoes</span>
-                <strong>{dados.emprestimos.length}</strong>
-              </div>
-              <div className="resultBox">
-                <span>Saldo estimado em aberto</span>
-                <strong>{moeda(carteiraAberta)}</strong>
+
+            <article className="panel operationPreview">
+              <div className="panelTitle">Ultimas operacoes</div>
+              <div className="compactTable">
+                {ultimasOperacoes.length === 0 && <span className="hint">Nenhuma operacao cadastrada.</span>}
+                {ultimasOperacoes.map((item) => (
+                  <div className="compactRow" key={item.id}>
+                    <div>
+                      <strong>{item.numeroOperacao || '-'}</strong>
+                      <span>{item.cliente?.nome || 'Cliente nao informado'}</span>
+                    </div>
+                    <b>{moeda(item.valorTotal || item.valor || 0)}</b>
+                    <StatusBadge status={item.statusOperacao || item.status} />
+                  </div>
+                ))}
               </div>
             </article>
           </section>
-        </>
+        </div>
       ) : (
-        <>
-          <section className="dashboardHero salesHero">
-            <article>
-              <span>Faturamento em vendas</span>
+        <div className="commandCenter">
+          <section className="salesCommand">
+            <article className="ledgerPanel salesLedger">
+              <div className="ledgerTop">
+                <span>Receita de vendas</span>
+                <CircleDollarSign size={22} />
+              </div>
               <strong>{moeda(faturamentoVendas)}</strong>
-              <p>Carros, motos e celulares vendidos no modulo de produtos.</p>
+              <p>{resumoVendas?.totalProdutos || 0} produtos disponiveis para venda.</p>
+              <div className="ledgerStats">
+                <div><span>Lucro</span><b>{moeda(lucroVendas)}</b></div>
+                <div><span>Modulos</span><b>3</b></div>
+                <div><span>Juros</span><b>{JUROS_NORMAL_VENDA}%</b></div>
+              </div>
             </article>
-            <article>
-              <span>Lucro estimado</span>
-              <strong>{moeda(lucroVendas)}</strong>
-              <p>Baseado no custo cadastrado e valor final das vendas.</p>
-            </article>
+
+            <div className="salesLanes">
+              {vendasPorTipo.map(({ tipo, dados: item }) => {
+                const Icon = tipo.icon;
+                return (
+                  <article className="salesLane" key={tipo.id}>
+                    <Icon size={20} />
+                    <span>{tipo.label}</span>
+                    <strong>{moeda(item.faturamento || 0)}</strong>
+                    <small>{item.estoque || 0} em estoque | lucro {moeda(item.lucro || 0)}</small>
+                  </article>
+                );
+              })}
+            </div>
           </section>
 
-          <div className="statsGrid compact">
-            <Stat icon={PackagePlus} label="Produtos em estoque" value={resumoVendas?.totalProdutos || 0} tone="amber" />
-            <Stat icon={CircleDollarSign} label="Faturamento" value={moeda(faturamentoVendas)} tone="green" />
-            <Stat icon={CircleDollarSign} label="Lucro estimado" value={moeda(lucroVendas)} tone="blue" />
-          </div>
-
-          <section className="contentGrid">
+          <section className="operationWorkbench">
             <article className="panel">
-              <div className="panelTitle">Vendas por modulo</div>
-              <div className="moduleRows">
+              <div className="panelTitle">Estoque por modulo</div>
+              <div className="queueGrid">
                 {vendasPorTipo.map(({ tipo, dados: item }) => {
                   const Icon = tipo.icon;
-                  return (
-                    <div className="moduleRow" key={tipo.id}>
-                      <Icon size={20} />
-                      <div><strong>{tipo.label}</strong><span>{item.estoque || 0} disponiveis</span></div>
-                      <b>{moeda(item.faturamento || 0)}</b>
-                    </div>
-                  );
+                  return <div key={tipo.id}><Icon size={18} /><span>{tipo.label}</span><strong>{item.estoque || 0}</strong></div>;
                 })}
               </div>
             </article>
             <article className="panel">
-              <div className="panelTitle">Resultado de vendas</div>
+              <div className="panelTitle">Resultado por modulo</div>
               <div className="dashboardList">
                 {vendasPorTipo.map(({ tipo, dados: item }) => (
                   <div key={tipo.id}><span>{tipo.label}</span><strong>{moeda(item.lucro || 0)}</strong></div>
@@ -141,7 +163,7 @@ function Painel({ dados, resumoVendas, recarregar }) {
               </div>
             </article>
           </section>
-        </>
+        </div>
       )}
     </>
   );

@@ -95,6 +95,48 @@ nav { padding: 10px 0; display: grid; gap: 6px; overflow-y: auto; }
 .dashboardList span { color: var(--muted); font-weight: 700; }
 .dashboardList strong { font-size: 20px; letter-spacing: 0; }
 
+.commandTabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: -2px 0 18px; padding: 5px; background: #e9eef3; border: 1px solid #dce4ea; border-radius: 8px; }
+.commandTabs button { min-height: 40px; border: 0; border-radius: 7px; background: transparent; color: #64748b; font-weight: 900; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.commandTabs button.active { background: white; color: #0f172a; box-shadow: 0 1px 2px rgba(15, 23, 42, .08), 0 10px 24px rgba(15, 23, 42, .08); }
+.commandCenter { display: grid; gap: 16px; }
+.commandHero, .salesCommand { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(280px, .85fr); gap: 16px; }
+.ledgerPanel { min-height: 260px; border: 1px solid rgba(255,255,255,.08); border-radius: 8px; padding: 22px; color: white; background: radial-gradient(circle at 92% 8%, rgba(46,204,143,.24), transparent 30%), linear-gradient(135deg, #0e1117 0%, #10201d 58%, #0f766e 140%); box-shadow: 0 18px 46px rgba(15, 23, 42, .16); display: grid; align-content: space-between; gap: 18px; }
+.salesLedger { background: radial-gradient(circle at 88% 10%, rgba(56,189,248,.22), transparent 32%), linear-gradient(135deg, #0e1117 0%, #102036 62%, #075985 140%); }
+.ledgerTop { display: flex; align-items: center; justify-content: space-between; color: rgba(255,255,255,.68); font-weight: 900; }
+.ledgerTop svg { color: #86efac; }
+.salesLedger .ledgerTop svg { color: #7dd3fc; }
+.ledgerPanel > strong { font-size: clamp(38px, 5vw, 58px); line-height: 1; letter-spacing: 0; }
+.ledgerPanel p { margin: 0; color: rgba(255,255,255,.68); max-width: 620px; }
+.ledgerStats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ledgerStats div { border: 1px solid rgba(255,255,255,.1); border-radius: 8px; padding: 12px; background: rgba(255,255,255,.06); display: grid; gap: 5px; min-width: 0; }
+.ledgerStats span { color: rgba(255,255,255,.56); font-size: 12px; font-weight: 800; }
+.ledgerStats b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.priorityPanel { border-radius: 8px; padding: 16px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(15, 23, 42, .06), 0 10px 30px rgba(15, 23, 42, .04); display: grid; align-content: start; gap: 10px; }
+.priorityItem { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 62px; border-radius: 8px; padding: 12px 14px; border: 1px solid var(--border); background: #f8fafc; }
+.priorityItem span { color: var(--muted); font-weight: 800; }
+.priorityItem strong { font-size: 28px; letter-spacing: 0; }
+.priorityItem.danger { background: #fff1f2; border-color: #fecdd3; color: #be123c; }
+.priorityItem.warn { background: #fffbeb; border-color: #fde68a; color: #b45309; }
+.priorityItem.ok { background: #ecfdf5; border-color: #bbf7d0; color: #15803d; }
+.operationWorkbench { display: grid; grid-template-columns: minmax(290px, .85fr) minmax(0, 1.45fr); gap: 16px; }
+.queueGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.queueGrid div { min-height: 86px; border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: #f8fafc; display: grid; align-content: space-between; gap: 8px; }
+.queueGrid svg { color: var(--primary); }
+.queueGrid span { color: var(--muted); font-weight: 800; }
+.queueGrid strong { font-size: 24px; letter-spacing: 0; }
+.compactTable { display: grid; }
+.compactRow { display: grid; grid-template-columns: minmax(170px, 1fr) auto auto; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.compactRow:last-child { border-bottom: 0; }
+.compactRow span { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.compactRow b { white-space: nowrap; }
+.salesCommand { grid-template-columns: minmax(0, 1.1fr) minmax(360px, .9fr); }
+.salesLanes { display: grid; gap: 10px; }
+.salesLane { border: 1px solid var(--border); border-radius: 8px; padding: 16px; background: var(--surface); box-shadow: 0 1px 3px rgba(15, 23, 42, .06); display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px; }
+.salesLane svg { color: var(--primary); }
+.salesLane span { font-weight: 900; }
+.salesLane strong { font-size: 18px; white-space: nowrap; }
+.salesLane small { grid-column: 2 / 4; color: var(--muted); }
+
 .contentGrid { display: grid; grid-template-columns: 1.4fr .8fr; gap: 14px; }
 .panel, .tablePanel, .productCard, .inlineForm { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }
 .panelTitle { font-weight: 800; margin-bottom: 14px; }
@@ -302,8 +344,14 @@ tbody tr:hover td {
   .menuOpen .sidebarBackdrop { display: block; }
   .mobileClose { margin-left: auto; width: 34px; height: 34px; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; background: rgba(255,255,255,.06); color: white; display: grid; place-items: center; }
   .workspace { width: 100%; margin-left: 0; padding: 16px; }
-  .statsGrid, .statsGrid.compact, .contentGrid, .dashboardHero, .inlineForm, .formGrid, .summaryStrip, .optionalDocs, .docUploadGrid, .settingsGrid { grid-template-columns: 1fr; }
+  .statsGrid, .statsGrid.compact, .contentGrid, .dashboardHero, .commandHero, .salesCommand, .operationWorkbench, .inlineForm, .formGrid, .summaryStrip, .optionalDocs, .docUploadGrid, .settingsGrid { grid-template-columns: 1fr; }
   .viewSwitch { display: grid; grid-template-columns: 1fr; width: 100%; }
+  .commandTabs { grid-template-columns: 1fr; }
+  .ledgerPanel { min-height: 220px; padding: 18px; }
+  .ledgerStats, .queueGrid { grid-template-columns: 1fr; }
+  .compactRow { grid-template-columns: 1fr; gap: 6px; align-items: start; }
+  .salesLane { grid-template-columns: 28px 1fr; }
+  .salesLane strong, .salesLane small { grid-column: 2; }
   .dashboardHero article { min-height: 132px; padding: 18px; }
   .pageHeader { display: grid; gap: 12px; }
   .pageHeader h2 { font-size: 20px; }
