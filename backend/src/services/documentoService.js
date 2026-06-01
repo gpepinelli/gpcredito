@@ -1,9 +1,8 @@
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../lib/prisma');
 const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
 
-const prisma = new PrismaClient();
 const ROOT_DIR = path.join(__dirname, '..', '..', '..');
 const UPLOADS_DIR = path.join(ROOT_DIR, 'uploads');
 

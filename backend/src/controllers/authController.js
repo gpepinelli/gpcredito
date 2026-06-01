@@ -1,4 +1,4 @@
-const { criarToken, senhaAdminValida } = require('../utils/auth');
+const { criarTokenAsync, senhaAdminValida } = require('../utils/auth');
 const logger = require('../utils/logger');
 
 const tentativasLogin = new Map();
@@ -42,7 +42,7 @@ class AuthController {
 
       return res.json({
         sucesso: true,
-        token: criarToken(),
+        token: await criarTokenAsync(),
       });
     } catch (error) {
       logger.error('Erro ao autenticar administrador', { error: error.message });

@@ -2,14 +2,14 @@
 // Cron Jobs - executam automaticamente todos os dias
 
 const cron = require('node-cron');
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../lib/prisma');
 const { calcularDiasAtraso } = require('../utils/calculadora');
 const whatsapp = require('../integrations/whatsapp');
 const emprestimoService = require('../services/emprestimoService');
+const orcamentoService = require('../services/orcamentoService');
 const scoreService = require('../services/scoreService');
+const config = require('../services/configuracaoService');
 const logger = require('../utils/logger');
-
-const prisma = new PrismaClient();
 
 /**
  * Verifica empréstimos pendentes e atrasados
@@ -36,6 +36,8 @@ async function verificarVencimentos() {
   let pixEnviados = 0;
   let cobrancasAtraso = 0;
   let marcadosAtrasados = 0;
+
+  const diasPenalidade = await config.getConfigNumber('DIAS_INADIMPLENCIA_PENALIDADE');
 
   for (const emp of emprestimos) {
     const diasAtraso = calcularDiasAtraso(emp.dataVencimento);
@@ -67,8 +69,12 @@ async function verificarVencimentos() {
         if (await whatsapp.enviarPixManual(emp.cliente, emp)) pixEnviados++;
         cobrancasAtraso++;
 
-        if (diasAtraso === 8) {
+        if (diasAtraso >= diasPenalidade && !emp.scorePenalizadoInadimplenciaEm) {
           await scoreService.aplicarAlteracao(emp.clienteId, 'NAO_PAGAMENTO');
+          await prisma.emprestimo.update({
+            where: { id: emp.id },
+            data: { scorePenalizadoInadimplenciaEm: new Date() },
+          });
           logger.warn('🚨 Score penalizado por inadimplência', { clienteId: emp.clienteId, diasAtraso });
         }
       }
@@ -92,11 +98,31 @@ async function verificarRenovacoes() {
   }
 }
 
-function iniciarJobs() {
-  cron.schedule('0 9 * * *', verificarVencimentos, { timezone: 'America/Sao_Paulo' });
-  cron.schedule('0 18 * * *', verificarVencimentos, { timezone: 'America/Sao_Paulo' });
-  cron.schedule('30 9 * * *', verificarRenovacoes, { timezone: 'America/Sao_Paulo' });
+async function expirarOrcamentos() {
+  try {
+    await orcamentoService.expirarPendentes();
+  } catch (error) {
+    logger.error('Erro ao expirar orcamentos', { error: error.message });
+  }
+}
+
+function cronExpression(hora = '09:00') {
+  const [hh, mm] = String(hora).split(':').map(Number);
+  return `${mm || 0} ${hh || 0} * * *`;
+}
+
+async function iniciarJobs() {
+  const [horaManha, horaTarde, horaRenovacao, timezone] = await Promise.all([
+    config.getConfig('COBRANCA_HORA_MANHA'),
+    config.getConfig('COBRANCA_HORA_TARDE'),
+    config.getConfig('RENOVACAO_HORA'),
+    config.getConfig('TIMEZONE'),
+  ]);
+  cron.schedule(cronExpression(horaManha), verificarVencimentos, { timezone });
+  cron.schedule(cronExpression(horaTarde), verificarVencimentos, { timezone });
+  cron.schedule(cronExpression(horaRenovacao), verificarRenovacoes, { timezone });
+  cron.schedule('0 * * * *', expirarOrcamentos, { timezone });
   logger.info('✅ Cron jobs registrados: cobranças às 09:00 e 18:00; renovações às 09:30 (Brasília)');
 }
 
-module.exports = { iniciarJobs, verificarVencimentos, verificarRenovacoes };
+module.exports = { iniciarJobs, verificarVencimentos, verificarRenovacoes, expirarOrcamentos };

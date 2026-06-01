@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const configuracaoService = require('../services/configuracaoService');
 
 const TOKEN_TTL_MS = 8 * 60 * 60 * 1000;
 
@@ -18,6 +19,7 @@ function safeCompare(a = '', b = '') {
   const left = Buffer.from(String(a));
   const right = Buffer.from(String(b));
 
+  // O tamanho ainda retorna antes do timingSafeEqual; aceitavel para senha admin local.
   if (left.length !== right.length) return false;
   return crypto.timingSafeEqual(left, right);
 }
@@ -69,6 +71,17 @@ function senhaExclusaoValida(senha) {
   return Boolean(configuredPassword) && safeCompare(senha, configuredPassword);
 }
 
+async function criarTokenAsync() {
+  const horas = await configuracaoService.getConfigNumber('TOKEN_EXPIRACAO_HORAS');
+  const ttl = Math.max(1, Number(horas || 8)) * 60 * 60 * 1000;
+  const payload = JSON.stringify({
+    sub: 'admin',
+    exp: Date.now() + ttl,
+  });
+  const encodedPayload = base64url(payload);
+  return `${encodedPayload}.${sign(encodedPayload)}`;
+}
+
 function requireAdmin(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
@@ -92,7 +105,9 @@ function requireDeletePassword(req, res, next) {
 
 module.exports = {
   criarToken,
+  criarTokenAsync,
   requireAdmin,
   requireDeletePassword,
   senhaAdminValida,
+  senhaExclusaoValida,
 };

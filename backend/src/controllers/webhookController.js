@@ -1,12 +1,10 @@
 // src/controllers/webhookController.js
 // Recebe notificações automáticas do Mercado Pago quando alguém paga
 
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../lib/prisma');
 const mercadopago = require('../integrations/mercadopago');
 const emprestimoService = require('../services/emprestimoService');
 const logger = require('../utils/logger');
-
-const prisma = new PrismaClient();
 
 class WebhookController {
   async mercadoPago(req, res) {

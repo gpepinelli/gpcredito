@@ -2,6 +2,7 @@
 // Integração com Mercado Pago para geração e recebimento de Pix
 
 const logger = require('../../utils/logger');
+const config = require('../../services/configuracaoService');
 
 function montarWebhookUrl() {
   const appUrl = String(process.env.APP_URL || '').replace(/\/+$/, '');
@@ -27,7 +28,8 @@ class MercadoPagoService {
    * @returns {Object} { qrCode, copiaCola, paymentId }
    */
   async gerarPix(emprestimo, cliente) {
-    if (this.simulado) {
+    const ativo = await config.getConfigBoolean('MERCADOPAGO_ATIVO');
+    if (!ativo || this.simulado) {
       return this._simularPix(emprestimo, cliente);
     }
 

@@ -1,22 +1,17 @@
-// src/services/emprestimoService.js
+﻿// src/services/emprestimoService.js
 
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../lib/prisma');
 const { calcularDataVencimento, calcularDiasAtraso, gerarParcelas } = require('../utils/calculadora');
 const scoreService = require('./scoreService');
 const whatsapp = require('../integrations/whatsapp');
 const mercadopago = require('../integrations/mercadopago');
 const logger = require('../utils/logger');
 const contratoService = require('./contratoService');
+const adminLogService = require('./adminLogService');
+const config = require('./configuracaoService');
 
-const prisma = new PrismaClient();
 const STATUS_OPERACAO_ABERTA = ['AGUARDANDO_ACEITE', 'APROVADO', 'LIBERADO', 'EM_DIA', 'ATRASADO'];
 const STATUS_OPERACAO_FINALIZADA_SEM_RENOVACAO = ['CANCELADO', 'RECUSADO'];
-const DIAS_PARA_OFERTA_RENOVACAO = 15;
-
-function permitirMultiplasOperacoesAtivas() {
-  return String(process.env.ALLOW_MULTIPLE_ACTIVE_OPERATIONS || '').toLowerCase() === 'true';
-}
-
 function calcularJurosRecebidoPagamento(pagamento) {
   if (pagamento.parcela) return Number(pagamento.parcela.valorJuros || 0);
 
@@ -48,28 +43,63 @@ async function gerarNumero(prefixo, campo) {
 
 class EmprestimoService {
 
-  async criar({ clienteId, valor, juros, diasParaVencer = 30, totalParcelas = 1 }) {
+  async criar({ clienteId, valor, juros, diasParaVencer, totalParcelas = 1 }) {
     const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } });
-    if (!cliente) throw new Error('Cliente não encontrado');
+    if (!cliente) throw new Error('Cliente nao encontrado');
 
-    const avaliacao = scoreService.avaliarCredito(cliente.score);
+    const [
+      permitirMultiplas,
+      jurosMinimo,
+      jurosMaximo,
+      valorMinimo,
+      valorMaximo,
+      parcelasMinimas,
+      parcelasMaximas,
+      intervaloParcelasDias,
+      diasPrimeiroVencimento,
+    ] = await Promise.all([
+      config.getConfigBoolean('ALLOW_MULTIPLE_ACTIVE_OPERATIONS'),
+      config.getConfigNumber('JUROS_MINIMO'),
+      config.getConfigNumber('JUROS_MAXIMO'),
+      config.getConfigNumber('VALOR_MINIMO_EMPRESTIMO'),
+      config.getConfigNumber('VALOR_MAXIMO_EMPRESTIMO'),
+      config.getConfigNumber('PARCELAS_MINIMAS'),
+      config.getConfigNumber('PARCELAS_MAXIMAS'),
+      config.getConfigNumber('INTERVALO_PARCELAS_DIAS'),
+      config.getConfigNumber('DIAS_PRIMEIRO_VENCIMENTO'),
+    ]);
+
+    const valorNumerico = Number(valor);
+    const jurosNumerico = Number(juros);
+    const totalParcelasNumerico = Number(totalParcelas || parcelasMinimas);
+    const diasVencimentoNumerico = Number(diasParaVencer || diasPrimeiroVencimento);
+
+    if (valorNumerico < valorMinimo || valorNumerico > valorMaximo) {
+      throw new Error(`Valor deve estar entre R$ ${valorMinimo} e R$ ${valorMaximo}`);
+    }
+    if (jurosNumerico < jurosMinimo || jurosNumerico > jurosMaximo) {
+      throw new Error(`Juros deve estar entre ${jurosMinimo}% e ${jurosMaximo}%`);
+    }
+    if (totalParcelasNumerico < parcelasMinimas || totalParcelasNumerico > parcelasMaximas) {
+      throw new Error(`Parcelas deve estar entre ${parcelasMinimas} e ${parcelasMaximas}`);
+    }
+
+    const avaliacao = await scoreService.avaliarCredito(cliente.score);
     if (!avaliacao.permitido) throw new Error(avaliacao.mensagem);
 
-    if (!permitirMultiplasOperacoesAtivas()) {
+    if (!permitirMultiplas) {
       const emprestimoAtivo = await prisma.emprestimo.findFirst({
         where: { clienteId, statusOperacao: { in: STATUS_OPERACAO_ABERTA } },
       });
-      if (emprestimoAtivo) throw new Error('Cliente já possui operação ativa. Quite ou finalize antes de criar outra.');
+      if (emprestimoAtivo) throw new Error('Cliente ja possui operacao ativa. Quite ou finalize antes de criar outra.');
     }
 
-    // Para empréstimo de parcela única, dataVencimento = diasParaVencer
-    // Para parcelado, dataVencimento = vencimento da última parcela
-    const parcelas = gerarParcelas(valor, juros, totalParcelas);
+    const parcelas = gerarParcelas(valorNumerico, jurosNumerico, totalParcelasNumerico, new Date(), intervaloParcelasDias);
     const valorTotal = parcelas.reduce((acc, p) => parseFloat((acc + p.valor).toFixed(2)), 0);
-    const dataVencimento = totalParcelas === 1
-      ? calcularDataVencimento(diasParaVencer)
+    const dataVencimento = totalParcelasNumerico === 1
+      ? calcularDataVencimento(diasVencimentoNumerico)
       : parcelas[parcelas.length - 1].dataVencimento;
-    const numeroOperacao = await gerarNumero('OP-01', 'numeroOperacao');
+    const numeroOperacao = await gerarNumero('OP', 'numeroOperacao');
     const numeroContrato = await gerarNumero('CT', 'numeroContrato');
     const caminhoContrato = contratoService.caminhoRelativoContrato(cliente, numeroOperacao);
 
@@ -78,14 +108,14 @@ class EmprestimoService {
         clienteId,
         numeroOperacao,
         numeroContrato,
-        valor,
-        juros,
+        valor: valorNumerico,
+        juros: jurosNumerico,
         valorTotal,
         dataVencimento,
-        totalParcelas,
+        totalParcelas: totalParcelasNumerico,
         status: 'pendente',
         statusOperacao: 'AGUARDANDO_ACEITE',
-        parcelas: totalParcelas > 1 ? {
+        parcelas: totalParcelasNumerico > 1 ? {
           create: parcelas.map(p => ({
             numero: p.numero,
             valor: p.valor,
@@ -125,10 +155,9 @@ class EmprestimoService {
       logger.error('Erro ao gerar/enviar contrato da operacao', { emprestimoId: emprestimo.id, numeroOperacao, error: error.message });
     }
 
-    logger.info('💰 Operação financeira criada', { emprestimoId: emprestimo.id, numeroOperacao, numeroContrato, clienteId, valor, valorTotal, totalParcelas, dataVencimento, contratoEnviado });
+    logger.info('Operacao financeira criada', { emprestimoId: emprestimo.id, numeroOperacao, numeroContrato, clienteId, valor: valorNumerico, valorTotal, totalParcelas: totalParcelasNumerico, dataVencimento, contratoEnviado });
     return { emprestimo, avaliacao, contratoEnviado };
   }
-
   async gerarEEnviarPix(emprestimo, cliente) {
     if (emprestimo.pixPaymentId) return;
     try {
@@ -143,7 +172,7 @@ class EmprestimoService {
       await whatsapp.enviarPixVencimento(cliente, emprestimo);
       await new Promise(r => setTimeout(r, 3000));
       await whatsapp.enviarPixCopiaCola(cliente, emprestimo);
-      logger.info('✅ Pix gerado e enviado', { emprestimoId: emprestimo.id });
+      logger.info('âœ… Pix gerado e enviado', { emprestimoId: emprestimo.id });
     } catch (error) {
       logger.error('Erro ao gerar/enviar Pix', { emprestimoId: emprestimo.id, error: error.message });
       throw error;
@@ -159,8 +188,8 @@ class EmprestimoService {
         parcelas: { orderBy: { numero: 'asc' } },
       },
     });
-    if (!emprestimo) throw new Error('Empréstimo não encontrado');
-    if (emprestimo.status === 'pago') return { mensagem: 'Pagamento já confirmado anteriormente' };
+    if (!emprestimo) throw new Error('EmprÃ©stimo nÃ£o encontrado');
+    if (emprestimo.status === 'pago') return { mensagem: 'Pagamento jÃ¡ confirmado anteriormente' };
 
     const diasAtraso = calcularDiasAtraso(emprestimo.dataVencimento);
     const totalPagoAnterior = emprestimo.pagamentos.reduce((acc, p) => acc + p.valorPago, 0);
@@ -198,9 +227,13 @@ class EmprestimoService {
         data: { emprestimoId, valorPago, dataPagamento: new Date(dataPagamento), status: 'confirmado' },
       });
 
+      const statusOperacao = novoStatus === 'pago'
+        ? 'QUITADO'
+        : (emprestimo.statusOperacao === 'ATRASADO' ? 'ATRASADO' : 'EM_DIA');
+
       await tx.emprestimo.update({
         where: { id: emprestimoId },
-        data: { status: novoStatus, statusOperacao: novoStatus === 'pago' ? 'QUITADO' : 'EM_DIA' },
+        data: { status: novoStatus, statusOperacao },
       });
 
       return pagamentoCriado;
@@ -212,7 +245,7 @@ class EmprestimoService {
       await whatsapp.enviarConfirmacao(emprestimo.cliente, pagamento);
     }
 
-    logger.info('✅ Pagamento confirmado', { emprestimoId, valorPago, novoStatus });
+    logger.info('âœ… Pagamento confirmado', { emprestimoId, valorPago, novoStatus });
     return pagamento;
   }
 
@@ -224,12 +257,12 @@ class EmprestimoService {
         parcelas: { orderBy: { numero: 'asc' } },
       },
     });
-    if (!emprestimo) throw new Error('Empréstimo não encontrado');
-    if (emprestimo.status === 'pago') return { mensagem: 'Pagamento já confirmado anteriormente' };
+    if (!emprestimo) throw new Error('EmprÃ©stimo nÃ£o encontrado');
+    if (emprestimo.status === 'pago') return { mensagem: 'Pagamento jÃ¡ confirmado anteriormente' };
 
     const parcela = emprestimo.parcelas.find(p => p.id === parcelaId);
-    if (!parcela) throw new Error('Parcela não encontrada');
-    if (parcela.status === 'pago') return { mensagem: 'Parcela já paga anteriormente' };
+    if (!parcela) throw new Error('Parcela nÃ£o encontrada');
+    if (parcela.status === 'pago') return { mensagem: 'Parcela jÃ¡ paga anteriormente' };
 
     let novoStatus = 'pendente';
     const pagamento = await prisma.$transaction(async (tx) => {
@@ -253,9 +286,13 @@ class EmprestimoService {
         },
       });
 
+      const statusOperacao = novoStatus === 'pago'
+        ? 'QUITADO'
+        : (emprestimo.statusOperacao === 'ATRASADO' ? 'ATRASADO' : 'EM_DIA');
+
       await tx.emprestimo.update({
         where: { id: emprestimoId },
-        data: { status: novoStatus, statusOperacao: novoStatus === 'pago' ? 'QUITADO' : 'EM_DIA' },
+        data: { status: novoStatus, statusOperacao },
       });
 
       return pagamentoCriado;
@@ -268,11 +305,180 @@ class EmprestimoService {
       await whatsapp.enviarConfirmacao(emprestimo.cliente, pagamento);
     }
 
-    logger.info('✅ Parcela paga', { emprestimoId, parcelaId, valorPago: parcela.valor, novoStatus });
+    logger.info('âœ… Parcela paga', { emprestimoId, parcelaId, valorPago: parcela.valor, novoStatus });
     return pagamento;
   }
 
   async listar(filtros = {}) {
+    const pagina = Math.max(1, Number(filtros.page || filtros.pagina || 1));
+    const limite = Math.min(100, Math.max(1, Number(filtros.limit || filtros.limite || 25)));
+    const where = {};
+
+    if (filtros.status) where.status = String(filtros.status);
+    if (filtros.statusOperacao) where.statusOperacao = String(filtros.statusOperacao).toUpperCase();
+    if (filtros.clienteId) where.clienteId = String(filtros.clienteId);
+    if (filtros.busca) {
+      const busca = String(filtros.busca).trim();
+      where.OR = [
+        { numeroOperacao: { contains: busca, mode: 'insensitive' } },
+        { numeroContrato: { contains: busca, mode: 'insensitive' } },
+        { cliente: { is: { nome: { contains: busca, mode: 'insensitive' } } } },
+        { cliente: { is: { telefone: { contains: busca, mode: 'insensitive' } } } },
+      ];
+    }
+    if (filtros.inicio || filtros.fim) {
+      where.dataVencimento = {};
+      if (filtros.inicio) where.dataVencimento.gte = new Date(`${filtros.inicio}T00:00:00`);
+      if (filtros.fim) where.dataVencimento.lte = new Date(`${filtros.fim}T23:59:59`);
+    }
+
+    const [total, emprestimos] = await Promise.all([
+      prisma.emprestimo.count({ where }),
+      prisma.emprestimo.findMany({
+        where,
+        include: { cliente: true, pagamentos: true, contratos: true, parcelas: { orderBy: { numero: 'asc' } } },
+        orderBy: { dataVencimento: 'asc' },
+        skip: (pagina - 1) * limite,
+        take: limite,
+      }),
+    ]);
+
+    return {
+      emprestimos,
+      total,
+      page: pagina,
+      limit: limite,
+      totalPages: Math.max(1, Math.ceil(total / limite)),
+    };
+  }
+
+  async alertasDoDia() {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const fimHoje = new Date(hoje);
+    fimHoje.setHours(23, 59, 59, 999);
+    const amanha = new Date(hoje);
+    amanha.setDate(amanha.getDate() + 1);
+    const fimAmanha = new Date(amanha);
+    fimAmanha.setHours(23, 59, 59, 999);
+
+    const whereAberto = { statusOperacao: { in: STATUS_OPERACAO_ABERTA } };
+    const [vencendoHoje, vencendoAmanha, atrasados] = await Promise.all([
+      prisma.emprestimo.count({ where: { ...whereAberto, dataVencimento: { gte: hoje, lte: fimHoje } } }),
+      prisma.emprestimo.count({ where: { ...whereAberto, dataVencimento: { gte: amanha, lte: fimAmanha } } }),
+      prisma.emprestimo.count({ where: { ...whereAberto, OR: [{ status: 'atrasado' }, { statusOperacao: 'ATRASADO' }, { dataVencimento: { lt: hoje } }] } }),
+    ]);
+
+    return { vencendoHoje, vencendoAmanha, atrasados };
+  }
+
+  async aceitarManual(emprestimoId) {
+    const emprestimo = await prisma.emprestimo.findUnique({
+      where: { id: emprestimoId },
+      include: { contratos: { orderBy: { criadoEm: 'desc' }, take: 1 } },
+    });
+    if (!emprestimo) throw new Error('Emprestimo nao encontrado');
+
+    return prisma.$transaction(async (tx) => {
+      const contrato = emprestimo.contratos[0];
+      if (contrato) {
+        await tx.contratoOperacao.update({
+          where: { id: contrato.id },
+          data: { statusContrato: 'ACEITO', aceitoEm: new Date() },
+        });
+      }
+      return tx.emprestimo.update({
+        where: { id: emprestimoId },
+        data: { statusOperacao: 'APROVADO' },
+        include: { cliente: true, pagamentos: true, contratos: true, parcelas: { orderBy: { numero: 'asc' } } },
+      });
+    });
+  }
+
+  async liberarDinheiro(emprestimoId) {
+    const emprestimo = await prisma.emprestimo.findUnique({ where: { id: emprestimoId } });
+    if (!emprestimo) throw new Error('Emprestimo nao encontrado');
+    if (!['APROVADO', 'LIBERADO'].includes(emprestimo.statusOperacao)) {
+      throw new Error('Operacao precisa estar aprovada para liberar o dinheiro');
+    }
+    const atualizado = await prisma.emprestimo.update({
+      where: { id: emprestimoId },
+      data: { statusOperacao: 'LIBERADO' },
+      include: { cliente: true, pagamentos: true, contratos: true, parcelas: { orderBy: { numero: 'asc' } } },
+    });
+    await adminLogService.registrar('CREDITO_LIBERADO', 'Dinheiro liberado ao cliente', { emprestimoId, numeroOperacao: atualizado.numeroOperacao });
+    return atualizado;
+  }
+
+  async reenviarContrato(emprestimoId) {
+    const emprestimo = await prisma.emprestimo.findUnique({
+      where: { id: emprestimoId },
+      include: { cliente: true, parcelas: { orderBy: { numero: 'asc' } }, contratos: { orderBy: { criadoEm: 'desc' }, take: 1 } },
+    });
+    if (!emprestimo) throw new Error('Emprestimo nao encontrado');
+    const caminhoPdf = await contratoService.gerarContrato(emprestimo, emprestimo.cliente);
+    const enviado = await whatsapp.enviarContrato(emprestimo.cliente, caminhoPdf);
+    if (enviado && emprestimo.contratos[0]) {
+      await prisma.contratoOperacao.update({ where: { id: emprestimo.contratos[0].id }, data: { statusContrato: 'ENVIADO' } });
+    }
+    return { enviado };
+  }
+
+  async reenviarPix(emprestimoId) {
+    const emprestimo = await prisma.emprestimo.findUnique({ where: { id: emprestimoId }, include: { cliente: true } });
+    if (!emprestimo) throw new Error('Emprestimo nao encontrado');
+    const enviado = emprestimo.pixCopiaCola
+      ? await whatsapp.enviarPixCopiaCola(emprestimo.cliente, emprestimo)
+      : await whatsapp.enviarPixManual(emprestimo.cliente, emprestimo);
+    return { enviado: Boolean(enviado) };
+  }
+
+  async atualizarObservacao(emprestimoId, observacao = '') {
+    return prisma.emprestimo.update({
+      where: { id: emprestimoId },
+      data: { observacao: String(observacao || '').trim() || null },
+      include: { cliente: true, pagamentos: true, contratos: true, parcelas: { orderBy: { numero: 'asc' } } },
+    });
+  }
+
+  async renegociarPrazo(emprestimoId, dataVencimento, observacao = '') {
+    const novaData = new Date(`${dataVencimento}T23:59:59`);
+    if (Number.isNaN(novaData.getTime())) throw new Error('Data de vencimento invalida');
+    const atualizado = await prisma.emprestimo.update({
+      where: { id: emprestimoId },
+      data: {
+        dataVencimento: novaData,
+        status: 'pendente',
+        statusOperacao: 'EM_DIA',
+        observacao: observacao ? String(observacao).trim() : undefined,
+      },
+      include: { cliente: true, pagamentos: true, contratos: true, parcelas: { orderBy: { numero: 'asc' } } },
+    });
+    await adminLogService.registrar('PRAZO_RENEGOCIADO', 'Prazo de operacao renegociado', { emprestimoId, numeroOperacao: atualizado.numeroOperacao, dataVencimento });
+    return atualizado;
+  }
+
+  async enviarCobrancaLote(ids = []) {
+    const selecionados = Array.isArray(ids) ? ids.filter(Boolean) : [];
+    if (selecionados.length === 0) throw new Error('Nenhuma operacao selecionada');
+    const emprestimos = await prisma.emprestimo.findMany({
+      where: { id: { in: selecionados } },
+      include: { cliente: true, parcelas: true },
+    });
+    let enviados = 0;
+    let falhas = 0;
+    for (const emprestimo of emprestimos) {
+      const dias = Math.max(1, calcularDiasAtraso(emprestimo.dataVencimento));
+      const ok = await whatsapp.enviarCobrancaAtraso(emprestimo.cliente, emprestimo, dias);
+      if (ok) enviados += 1;
+      else falhas += 1;
+      await new Promise(resolve => setTimeout(resolve, 700));
+    }
+    await adminLogService.registrar('COBRANCA_LOTE', 'Cobranca WhatsApp enviada em lote', { ids: selecionados, enviados, falhas });
+    return { enviados, falhas, total: emprestimos.length };
+  }
+
+  async listarTodos(filtros = {}) {
     return prisma.emprestimo.findMany({
       where: filtros,
       include: { cliente: true, pagamentos: true, contratos: true, parcelas: { orderBy: { numero: 'asc' } } },
@@ -286,6 +492,33 @@ class EmprestimoService {
       include: { cliente: true, contratos: true, parcelas: true },
       orderBy: { dataVencimento: 'asc' },
     });
+  }
+
+  async inadimplenciaAging() {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const atrasados = await prisma.emprestimo.findMany({
+      where: {
+        statusOperacao: { in: ['ATRASADO', 'EM_DIA', 'LIBERADO'] },
+        dataVencimento: { lt: hoje },
+      },
+      include: { cliente: true },
+      orderBy: { dataVencimento: 'asc' },
+    });
+    const faixas = {
+      '1-7': { label: '1 a 7 dias', total: 0, valor: 0, itens: [] },
+      '8-15': { label: '8 a 15 dias', total: 0, valor: 0, itens: [] },
+      '16-30': { label: '16 a 30 dias', total: 0, valor: 0, itens: [] },
+      '30+': { label: '30+ dias', total: 0, valor: 0, itens: [] },
+    };
+    for (const item of atrasados) {
+      const dias = calcularDiasAtraso(item.dataVencimento);
+      const chave = dias <= 7 ? '1-7' : dias <= 15 ? '8-15' : dias <= 30 ? '16-30' : '30+';
+      faixas[chave].total += 1;
+      faixas[chave].valor = Number((faixas[chave].valor + Number(item.valorTotal || 0)).toFixed(2));
+      faixas[chave].itens.push({ id: item.id, numeroOperacao: item.numeroOperacao, cliente: item.cliente?.nome, dias, valorTotal: item.valorTotal });
+    }
+    return faixas;
   }
 
   async excluir(emprestimoId) {
@@ -335,7 +568,7 @@ class EmprestimoService {
     };
   }
 
-  // Métricas mensais para relatório
+  // MÃ©tricas mensais para relatÃ³rio
   async metricasMensais() {
     const emprestimos = await prisma.emprestimo.findMany({
       include: { pagamentos: { where: { status: 'confirmado' }, include: { parcela: true } } },
@@ -363,7 +596,7 @@ class EmprestimoService {
     }));
   }
 
-  // Dados completos para exportação Excel
+  // Dados completos para exportaÃ§Ã£o Excel
   async dadosParaExport() {
     const [emprestimos, clientes, pagamentos] = await Promise.all([
       prisma.emprestimo.findMany({ include: { cliente: true, pagamentos: true, contratos: true, parcelas: { orderBy: { numero: 'asc' } } }, orderBy: { dataEmprestimo: 'desc' } }),
@@ -374,8 +607,9 @@ class EmprestimoService {
   }
 
   async processarRenovacoesPendentes(agora = new Date()) {
+    const diasRenovacao = await config.getConfigNumber('RENOVACAO_DIAS_APOS_QUITACAO');
     const limite = new Date(agora);
-    limite.setDate(limite.getDate() - DIAS_PARA_OFERTA_RENOVACAO);
+    limite.setDate(limite.getDate() - diasRenovacao);
 
     const emprestimos = await prisma.emprestimo.findMany({
       where: {
@@ -452,3 +686,4 @@ class EmprestimoService {
 }
 
 module.exports = new EmprestimoService();
+

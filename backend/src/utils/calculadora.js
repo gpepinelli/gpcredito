@@ -22,24 +22,31 @@ function calcularDiasAtraso(dataVencimento) {
  * Usa juros mensal sobre saldo devedor.
  * Intervalo fixo de 30 dias entre parcelas.
  */
-function gerarParcelas(valorPrincipal, juros, totalParcelas, dataInicio = new Date()) {
+function arredondar(valor) {
+  return parseFloat(Number(valor || 0).toFixed(2));
+}
+
+function gerarParcelas(valorPrincipal, juros, totalParcelas, dataInicio = new Date(), intervaloDias = 30) {
   const total = Math.max(1, Math.ceil(Number(totalParcelas) || 1));
+  const principal = arredondar(valorPrincipal);
   const percentual = (Number(juros) || 0) / 100;
-  const amortizacaoBase = parseFloat((valorPrincipal / total).toFixed(2));
-  let saldoDevedor = parseFloat(Number(valorPrincipal).toFixed(2));
+  const amortizacaoBase = arredondar(principal / total);
+  let saldoDevedor = principal;
+  let amortizacaoDistribuida = 0;
 
   return Array.from({ length: total }, (_, i) => {
     const venc = new Date(dataInicio);
-    venc.setDate(venc.getDate() + 30 * (i + 1));
+    venc.setDate(venc.getDate() + Number(intervaloDias || 30) * (i + 1));
     venc.setHours(23, 59, 59, 0);
-    const saldoAntes = parseFloat(saldoDevedor.toFixed(2));
+    const saldoAntes = arredondar(saldoDevedor);
     const amortizacao = i === total - 1
-      ? saldoAntes
+      ? arredondar(principal - amortizacaoDistribuida)
       : Math.min(amortizacaoBase, saldoAntes);
-    const valorJuros = parseFloat((saldoAntes * percentual).toFixed(2));
-    const valor = parseFloat((amortizacao + valorJuros).toFixed(2));
-    const saldoDepois = parseFloat((saldoAntes - amortizacao).toFixed(2));
+    const valorJuros = arredondar(saldoAntes * percentual);
+    const valor = arredondar(amortizacao + valorJuros);
+    const saldoDepois = arredondar(saldoAntes - amortizacao);
     saldoDevedor = saldoDepois;
+    amortizacaoDistribuida = arredondar(amortizacaoDistribuida + amortizacao);
 
     return {
       numero: i + 1,
@@ -62,4 +69,30 @@ function formatarData(data) {
   return new Intl.DateTimeFormat('pt-BR').format(new Date(data));
 }
 
-module.exports = { calcularValorTotal, calcularDataVencimento, calcularDiasAtraso, gerarParcelas, formatarMoeda, formatarData };
+function validarCPF(cpf = '') {
+  const limpo = String(cpf).replace(/\D/g, '');
+  if (!limpo) return true;
+  if (limpo.length !== 11 || /^(\d)\1{10}$/.test(limpo)) return false;
+
+  const calcularDigito = (base) => {
+    const soma = base
+      .split('')
+      .reduce((acc, digito, index) => acc + Number(digito) * (base.length + 1 - index), 0);
+    const resto = (soma * 10) % 11;
+    return resto === 10 ? 0 : resto;
+  };
+
+  const primeiro = calcularDigito(limpo.slice(0, 9));
+  const segundo = calcularDigito(limpo.slice(0, 10));
+  return primeiro === Number(limpo[9]) && segundo === Number(limpo[10]);
+}
+
+module.exports = {
+  calcularValorTotal,
+  calcularDataVencimento,
+  calcularDiasAtraso,
+  formatarData,
+  formatarMoeda,
+  gerarParcelas,
+  validarCPF,
+};

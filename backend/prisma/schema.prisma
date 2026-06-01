@@ -12,7 +12,9 @@ datasource db {
 model Cliente {
   id         String   @id @default(uuid())
   nome       String
+  cpf        String?  @unique
   telefone   String   @unique
+  endereco   String?
   score      Int      @default(100)
   criadoEm   DateTime @default(now()) @map("criado_em")
 
@@ -20,8 +22,59 @@ model Cliente {
   historicoScore HistoricoScore[]
   documentos     DocumentoCliente[]
   contratos      ContratoOperacao[]
+  vendas         VendaProduto[]
+  orcamentos     Orcamento[]
+  arquivosPdf    ArquivoPdf[]
 
   @@map("clientes")
+}
+
+model ProdutoVenda {
+  id              String   @id @default(uuid())
+  tipo            TipoProdutoVenda
+  titulo          String
+  descricao       String?
+  marca           String?
+  modelo          String?
+  ano             Int?
+  identificador   String?  @unique
+  valorCusto      Float    @default(0) @map("valor_custo")
+  valorVenda      Float    @map("valor_venda")
+  status          StatusProdutoVenda @default(DISPONIVEL)
+  criadoEm        DateTime @default(now()) @map("criado_em")
+  atualizadoEm    DateTime @updatedAt @map("atualizado_em")
+
+  vendas VendaProduto[]
+
+  @@index([tipo])
+  @@index([status])
+  @@map("produtos_venda")
+}
+
+model VendaProduto {
+  id              String   @id @default(uuid())
+  produtoId       String   @map("produto_id")
+  clienteId       String?  @map("cliente_id")
+  compradorNome   String   @map("comprador_nome")
+  compradorTelefone String? @map("comprador_telefone")
+  valorBase       Float    @map("valor_base")
+  valorVenda      Float    @map("valor_venda")
+  valorEntrada    Float    @default(0) @map("valor_entrada")
+  jurosPercentual Float    @default(30) @map("juros_percentual")
+  valorParcela    Float    @default(0) @map("valor_parcela")
+  parcelas        Int      @default(1)
+  observacao      String?
+  status          StatusVendaProduto @default(ABERTA)
+  criadoEm        DateTime @default(now()) @map("criado_em")
+  concluidoEm     DateTime? @map("concluido_em")
+
+  produto ProdutoVenda @relation(fields: [produtoId], references: [id])
+  cliente Cliente? @relation(fields: [clienteId], references: [id])
+
+  @@index([produtoId])
+  @@index([clienteId])
+  @@index([status])
+  @@map("vendas_produto")
 }
 
 model Emprestimo {
@@ -37,11 +90,13 @@ model Emprestimo {
   status          StatusEmprestimo @default(pendente)
   statusOperacao  StatusOperacao @default(EM_DIA) @map("status_operacao")
   renovacaoOferecidaEm DateTime? @map("renovacao_oferecida_em")
+  scorePenalizadoInadimplenciaEm DateTime? @map("score_penalizado_inadimplencia_em")
   // Parcelamento
   totalParcelas   Int      @default(1) @map("total_parcelas")
   pixQrCode       String?  @map("pix_qr_code")
   pixCopiaCola    String?  @map("pix_copia_cola")
   pixPaymentId    String?  @map("pix_payment_id")
+  observacao      String?
 
   cliente   Cliente    @relation(fields: [clienteId], references: [id])
   pagamentos Pagamento[]
@@ -117,6 +172,7 @@ model Pagamento {
   valorPago     Float    @map("valor_pago")
   dataPagamento DateTime @default(now()) @map("data_pagamento")
   status        StatusPagamento @default(pendente)
+  caminhoPdf    String?  @map("caminho_pdf")
 
   emprestimo Emprestimo @relation(fields: [emprestimoId], references: [id])
   parcela    Parcela?   @relation(fields: [parcelaId], references: [id])
@@ -144,6 +200,57 @@ model Log {
   criadoEm DateTime @default(now()) @map("criado_em")
 
   @@map("logs")
+}
+
+model Orcamento {
+  id                String          @id @default(uuid())
+  clienteId         String?         @map("cliente_id")
+  valor             Float
+  juros             Float
+  parcelas          Int
+  primeiroVencimento DateTime       @map("primeiro_vencimento")
+  caminhoPdf        String?         @map("caminho_pdf")
+  status            StatusOrcamento @default(PENDENTE)
+  criadoEm          DateTime        @default(now()) @map("criado_em")
+  expiradoEm        DateTime?       @map("expirado_em")
+
+  cliente Cliente? @relation(fields: [clienteId], references: [id])
+
+  @@index([clienteId])
+  @@index([status])
+  @@map("orcamentos")
+}
+
+model ArquivoPdf {
+  id          String   @id @default(uuid())
+  clienteId   String?  @map("cliente_id")
+  tipo        TipoArquivoPdf
+  origemTipo  String?  @map("origem_tipo")
+  origemId    String?  @map("origem_id")
+  caminhoPdf  String   @map("caminho_pdf")
+  criadoEm    DateTime @default(now()) @map("criado_em")
+
+  cliente Cliente? @relation(fields: [clienteId], references: [id])
+
+  @@index([clienteId])
+  @@index([tipo])
+  @@index([origemTipo, origemId])
+  @@map("arquivos_pdf")
+}
+
+model Configuracao {
+  id          String              @id @default(uuid())
+  chave       String              @unique
+  valor       String
+  tipo        TipoConfiguracao
+  categoria   CategoriaConfiguracao
+  descricao   String
+  obrigatorio Boolean             @default(false)
+  criadoEm    DateTime            @default(now()) @map("criado_em")
+  atualizadoEm DateTime           @updatedAt @map("atualizado_em")
+
+  @@index([categoria])
+  @@map("configuracoes")
 }
 
 enum StatusEmprestimo {
@@ -191,4 +298,52 @@ enum StatusValidacaoDocumento {
   PENDENTE
   APROVADO
   RECUSADO
+}
+
+enum TipoProdutoVenda {
+  CARRO
+  MOTO
+  CELULAR
+}
+
+enum StatusProdutoVenda {
+  DISPONIVEL
+  RESERVADO
+  VENDIDO
+  INATIVO
+}
+
+enum StatusVendaProduto {
+  ABERTA
+  CONCLUIDA
+  CANCELADA
+}
+
+enum TipoConfiguracao {
+  STRING
+  NUMBER
+  BOOLEAN
+  TIME
+}
+
+enum CategoriaConfiguracao {
+  CREDITO
+  SCORE
+  COBRANCA
+  VENDAS
+  PIX
+  SISTEMA
+}
+
+enum StatusOrcamento {
+  PENDENTE
+  CONVERTIDO
+  EXPIRADO
+}
+
+enum TipoArquivoPdf {
+  CONTRATO
+  ORCAMENTO
+  COBRANCA
+  RECIBO
 }

@@ -3,16 +3,16 @@
 
 const logger = require('../../utils/logger');
 const fs = require('fs');
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../../lib/prisma');
 const qrcode = require('qrcode-terminal');
 const pino = require('pino');
+const config = require('../../services/configuracaoService');
 
-const prisma = new PrismaClient();
 const TERMOS_ACEITE = ['DE ACORDO', 'CONCORDO', 'SIM'];
 
-function dadosPixManual() {
-  const chave = process.env.PIX_CHAVE || process.env.MEU_PIX || '';
-  const nome = process.env.PIX_NOME || process.env.PIX_TITULAR || 'Guilherme dos Santos Pepinelli';
+async function dadosPixManual() {
+  const chave = await config.getConfig('PIX_CHAVE');
+  const nome = await config.getConfig('PIX_NOME');
   return { chave: chave.trim(), nome: nome.trim() };
 }
 
@@ -53,6 +53,8 @@ const templates = {
     `📄 *Contrato de Empréstimo*\n\nOlá *${nome}*, segue em anexo o seu contrato.\n\nSe estiver de acordo, responda *DE ACORDO* neste WhatsApp para registrar o aceite digital.`,
   contratoAviso: (nome) =>
     `Olá *${nome}*, estou enviando agora o contrato de empréstimo em PDF.\n\nApós ler, responda *DE ACORDO* para registrar o aceite digital.`,
+  orcamento: (nome) =>
+    `Ola *${nome}*, segue em anexo a simulacao de credito solicitada.\n\nEste orcamento vale por 24 horas e nao substitui o contrato final.`,
 };
 
 function apenasDigitos(valor) {
@@ -265,6 +267,8 @@ class BaileysAdapter {
 }
 
 class MockAdapter {
+  constructor() { this.connected = true; this.messageQueue = []; }
+
   async initialize() { logger.info('📱 WhatsApp SIMULADO ativo.'); }
 
   async sendMessage(telefone, mensagem) {
@@ -288,6 +292,14 @@ class WhatsAppService {
   }
 
   async initialize() { return this.adapter.initialize(); }
+
+  status() {
+    return {
+      adapter: process.env.WHATSAPP_ADAPTER || 'mock',
+      connected: Boolean(this.adapter.connected || process.env.WHATSAPP_ADAPTER !== 'baileys'),
+      queued: this.adapter.messageQueue?.length || 0,
+    };
+  }
 
   async enviarLembrete(cliente, emprestimo) {
     const { formatarMoeda, formatarData } = require('../../utils/calculadora');
@@ -315,7 +327,7 @@ class WhatsAppService {
    */
   async enviarPixCopiaCola(cliente, emprestimo) {
     const { formatarMoeda } = require('../../utils/calculadora');
-    const pix = dadosPixManual();
+    const pix = await dadosPixManual();
     if (pix.chave) {
       return this.adapter.sendMessage(
         cliente.telefone,
@@ -331,7 +343,7 @@ class WhatsAppService {
 
   async enviarPixManual(cliente, emprestimo) {
     const { formatarMoeda } = require('../../utils/calculadora');
-    const pix = dadosPixManual();
+    const pix = await dadosPixManual();
     if (!pix.chave) {
       logger.warn('PIX_CHAVE nao configurada; Pix manual nao enviado', { clienteId: cliente.id, emprestimoId: emprestimo.id });
       return false;
@@ -367,6 +379,11 @@ class WhatsAppService {
     await this.adapter.sendMessage(cliente.telefone, templates.contratoAviso(cliente.nome));
     await new Promise(r => setTimeout(r, 1200));
     return this.adapter.sendDocument(cliente.telefone, caminhoPdf, nomeArquivo, templates.contrato(cliente.nome));
+  }
+
+  async enviarOrcamento(cliente, caminhoPdf) {
+    const nomeArquivo = `Orcamento_${cliente.nome.replace(/\s+/g, '_')}.pdf`;
+    return this.adapter.sendDocument(cliente.telefone, caminhoPdf, nomeArquivo, templates.orcamento(cliente.nome));
   }
 }
 

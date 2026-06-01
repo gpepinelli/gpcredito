@@ -1,13 +1,12 @@
 // src/controllers/clienteController.js
 
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../lib/prisma');
 const { validationResult } = require('express-validator');
 const scoreService = require('../services/scoreService');
 const documentoService = require('../services/documentoService');
 const contratoService = require('../services/contratoService');
+const config = require('../services/configuracaoService');
 const logger = require('../utils/logger');
-
-const prisma = new PrismaClient();
 
 class ClienteController {
   async criar(req, res) {
@@ -17,14 +16,30 @@ class ClienteController {
     }
 
     try {
-      const { nome, telefone } = req.body;
+      const { nome, telefone, cpf, endereco } = req.body;
 
       const clienteExistente = await prisma.cliente.findUnique({ where: { telefone } });
       if (clienteExistente) {
         return res.status(409).json({ sucesso: false, mensagem: 'Telefone já cadastrado' });
       }
 
-      const cliente = await prisma.cliente.create({ data: { nome, telefone } });
+      const cpfNormalizado = cpf ? String(cpf).replace(/\D/g, '') : null;
+      if (cpfNormalizado) {
+        const cpfExistente = await prisma.cliente.findUnique({ where: { cpf: cpfNormalizado } });
+        if (cpfExistente) {
+          return res.status(409).json({ sucesso: false, mensagem: 'CPF ja cadastrado' });
+        }
+      }
+
+      const cliente = await prisma.cliente.create({
+        data: {
+          nome,
+          telefone,
+          cpf: cpfNormalizado,
+          endereco: endereco ? String(endereco).trim() : null,
+          score: await config.getConfigNumber('SCORE_INICIAL'),
+        },
+      });
       logger.info('👤 Novo cliente criado', { clienteId: cliente.id, nome });
 
       return res.status(201).json({ sucesso: true, cliente });
@@ -36,17 +51,35 @@ class ClienteController {
 
   async listar(req, res) {
     try {
-      const clientes = await prisma.cliente.findMany({
-        include: {
-          emprestimos: {
-            where: { status: { in: ['pendente', 'atrasado'] } },
-            select: { id: true, valorTotal: true, status: true, dataVencimento: true },
-          },
-        },
-        orderBy: { criadoEm: 'desc' },
-      });
+      const page = Math.max(1, Number(req.query.page || 1));
+      const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));
+      const busca = String(req.query.busca || '').trim();
+      const cpfBusca = busca.replace(/\D/g, '');
+      const where = busca ? {
+        OR: [
+          { nome: { contains: busca, mode: 'insensitive' } },
+          { telefone: { contains: busca, mode: 'insensitive' } },
+          ...(cpfBusca ? [{ cpf: { contains: cpfBusca, mode: 'insensitive' } }] : []),
+        ],
+      } : {};
 
-      return res.json({ sucesso: true, clientes, total: clientes.length });
+      const [total, clientes] = await Promise.all([
+        prisma.cliente.count({ where }),
+        prisma.cliente.findMany({
+          where,
+          include: {
+            emprestimos: {
+              where: { status: { in: ['pendente', 'atrasado'] } },
+              select: { id: true, valorTotal: true, status: true, dataVencimento: true },
+            },
+          },
+          orderBy: { criadoEm: 'desc' },
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+      ]);
+
+      return res.json({ sucesso: true, clientes, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
     } catch (error) {
       logger.error('Erro ao listar clientes', { error: error.message });
       return res.status(500).json({ sucesso: false, mensagem: 'Erro interno do servidor' });
@@ -70,7 +103,7 @@ class ClienteController {
         return res.status(404).json({ sucesso: false, mensagem: 'Cliente não encontrado' });
       }
 
-      const avaliacaoCredito = scoreService.avaliarCredito(cliente.score);
+      const avaliacaoCredito = await scoreService.avaliarCredito(cliente.score);
       return res.json({ sucesso: true, cliente, avaliacaoCredito });
     } catch (error) {
       logger.error('Erro ao buscar cliente', { error: error.message });
@@ -205,6 +238,7 @@ class ClienteController {
         prisma.pagamento.deleteMany({ where: { emprestimoId: { in: emprestimoIds } } }),
         prisma.contratoOperacao.deleteMany({ where: { clienteId: id } }),
         prisma.documentoCliente.deleteMany({ where: { clienteId: id } }),
+        prisma.vendaProduto.deleteMany({ where: { clienteId: id } }),
         prisma.parcela.deleteMany({ where: { emprestimoId: { in: emprestimoIds } } }),
         prisma.emprestimo.deleteMany({ where: { clienteId: id } }),
         prisma.historicoScore.deleteMany({ where: { clienteId: id } }),
