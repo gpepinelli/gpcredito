@@ -169,6 +169,7 @@ Total: 1600,00
 - Orcamentos pendentes vencidos devem ser deletados automaticamente apos 24 horas.
 - Ao deletar um orcamento vencido, o sistema tambem remove o PDF e o registro correspondente em `arquivos_pdf`.
 - Orcamento pendente pode ser reaberto, reenviado pelo WhatsApp ou convertido em operacao.
+- Orcamento pode ser excluido manualmente com senha de exclusao; a exclusao remove o PDF e o registro em `arquivos_pdf`.
 - Converter orcamento preenche a tela de nova operacao com cliente, valor, juros, parcelas e vencimento.
 
 ## 6. Renovacao

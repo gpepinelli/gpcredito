@@ -50,6 +50,15 @@ class OrcamentoController {
       return res.status(400).json({ sucesso: false, mensagem: error.message });
     }
   }
+
+  async excluir(req, res) {
+    try {
+      const orcamento = await orcamentoService.excluir(req.params.id);
+      return res.json({ sucesso: true, mensagem: 'Orcamento excluido com sucesso', orcamento });
+    } catch (error) {
+      return res.status(error.message.includes('nao encontrado') ? 404 : 500).json({ sucesso: false, mensagem: error.message });
+    }
+  }
 }
 
 module.exports = new OrcamentoController();

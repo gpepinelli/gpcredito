@@ -435,7 +435,7 @@ function dataInputDepoisDias(dias = 30) {
   return data.toISOString().slice(0, 10);
 }
 
-function Orcamentos({ clientes, configuracoes, notificar, converterOrcamento }) {
+function Orcamentos({ clientes, configuracoes, notificar, converterOrcamento, excluirOrcamento, refreshKey = 0 }) {
   const [buscaCliente, setBuscaCliente] = useState('');
   const [form, setForm] = useState({
     clienteId: '',
@@ -461,7 +461,7 @@ function Orcamentos({ clientes, configuracoes, notificar, converterOrcamento }) 
     }
   }
 
-  useEffect(() => { carregarOrcamentos(); }, []);
+  useEffect(() => { carregarOrcamentos(); }, [refreshKey]);
 
   async function gerarPdf(event) {
     event.preventDefault();
@@ -578,6 +578,7 @@ function Orcamentos({ clientes, configuracoes, notificar, converterOrcamento }) 
                   <button className="smallButton" onClick={() => reabrir(orcamento)}>Reabrir</button>
                   <button className="smallButton" disabled={!orcamento.clienteId || orcamento.status !== 'PENDENTE'} onClick={() => enviar(orcamento)}>Enviar</button>
                   <button className="smallButton" disabled={orcamento.status !== 'PENDENTE'} onClick={() => converter(orcamento)}>Converter</button>
+                  <button className="dangerButton" onClick={() => excluirOrcamento(orcamento)} title="Excluir orcamento"><Trash2 size={16} /></button>
                 </td>
               </tr>
             ))}
@@ -777,6 +778,7 @@ export default function App() {
   const [buscaGlobal, setBuscaGlobal] = useState('');
   const [clienteInicialCredito, setClienteInicialCredito] = useState('');
   const [creditoPrefill, setCreditoPrefill] = useState(null);
+  const [orcamentosRefreshKey, setOrcamentosRefreshKey] = useState(0);
   const [erro, setErro] = useState('');
   const [pagamento, setPagamento] = useState(null);
   const [parcelas, setParcelas] = useState(null);
@@ -1032,9 +1034,18 @@ export default function App() {
   }
 
   async function confirmarExclusao(alvo, senha) {
-    const path = alvo.tipo === 'cliente' ? `/clientes/${alvo.id}` : `/emprestimos/${alvo.id}`;
+    const path = alvo.tipo === 'cliente'
+      ? `/clientes/${alvo.id}`
+      : alvo.tipo === 'orcamento'
+        ? `/orcamentos/${alvo.id}`
+        : `/emprestimos/${alvo.id}`;
     await api(path, { method: 'DELETE', body: JSON.stringify({ senha }) });
     await carregar();
+    if (alvo.tipo === 'orcamento') {
+      setOrcamentosRefreshKey((valor) => valor + 1);
+      notificar('sucesso', 'Orcamento excluido.');
+      return;
+    }
     notificar('sucesso', 'Registro excluido.');
   }
 
@@ -1097,7 +1108,7 @@ export default function App() {
       {erro && <div className="errorBanner">{erro}</div>}
       {active === 'painel' && <Painel dados={dados} resumoVendas={resumoVendas} recarregar={carregar} />}
       {active === 'tarefas' && <TarefasHoje emprestimos={dados.emprestimos} abrirPagar={setPagamento} aceitarManual={aceitarManual} liberarDinheiro={liberarDinheiro} reenviarPix={reenviarPix} />}
-      {active === 'orcamentos' && <Orcamentos clientes={dados.clientes} configuracoes={configuracoes} notificar={notificar} converterOrcamento={converterOrcamento} />}
+      {active === 'orcamentos' && <Orcamentos clientes={dados.clientes} configuracoes={configuracoes} notificar={notificar} converterOrcamento={converterOrcamento} refreshKey={orcamentosRefreshKey} excluirOrcamento={(orcamento) => setExclusao({ tipo: 'orcamento', id: orcamento.id, nome: `orcamento de ${orcamento.cliente?.nome || 'simulacao'}`, resumo: `Valor ${moeda(orcamento.valor)}, ${orcamento.parcelas} parcela(s), status ${orcamento.status}. O PDF salvo tambem sera removido.` })} />}
       {active === 'clientes' && <Clientes clientes={dados.clientes} salvarCliente={salvarCliente} verCliente={setClienteDetalhe} onUnauthorized={encerrarSessao} filtros={filtrosClientes} setFiltros={setFiltrosClientes} paginacao={paginacaoClientes} excluirCliente={(cliente) => setExclusao({ tipo: 'cliente', id: cliente.id, nome: cliente.nome, resumo: `Este cliente tem ${cliente.emprestimos?.length || 0} operacao(oes) aberta(s) vinculada(s). Documentos, contratos, parcelas, pagamentos e vendas vinculadas tambem serao removidos.` })} />}
       {active === 'credito' && <Credito emprestimos={dados.emprestimos} clientes={dados.clientes} salvarCredito={salvarCredito} abrirPagar={setPagamento} abrirParcelas={setParcelas} filtros={filtrosCredito} setFiltros={setFiltrosCredito} paginacao={paginacaoCredito} aceitarManual={aceitarManual} liberarDinheiro={liberarDinheiro} reenviarContrato={reenviarContrato} reenviarPix={reenviarPix} atualizarObservacao={setObservacaoModal} pagarProximaParcela={pagarProximaParcela} renegociarPrazo={setRenegociacaoModal} cobrarLote={cobrarLote} clienteInicial={creditoPrefill || clienteInicialCredito} configuracoes={configuracoes} excluirEmprestimo={(emprestimo) => setExclusao({ tipo: 'emprestimo', id: emprestimo.id, nome: `emprestimo de ${emprestimo.cliente?.nome || 'cliente'}`, resumo: `${emprestimo.totalParcelas || 1} parcela(s), ${moeda(emprestimo.valorTotal)} total, status ${emprestimo.statusOperacao || emprestimo.status}.` })} />}
       {active === 'relatorios' && <Relatorios />}

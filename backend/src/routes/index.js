@@ -128,6 +128,7 @@ router.post('/orcamentos',
 router.get('/orcamentos/:id', orcamentoController.buscar);
 router.post('/orcamentos/:id/enviar', orcamentoController.enviar);
 router.post('/orcamentos/:id/converter', orcamentoController.converter);
+router.delete('/orcamentos/:id', requireDeletePassword, orcamentoController.excluir);
 
 // â”€â”€ VENDAS: CARROS, MOTOS E CELULARES â”€â”€
 router.get('/vendas/resumo', vendaProdutoController.resumo);

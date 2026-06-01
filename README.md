@@ -181,6 +181,7 @@ O backend serve `frontend/dist` quando o build existe.
 - Gera PDF de orcamento com validade de 24 horas.
 - Salva historico enquanto o orcamento estiver valido ou convertido.
 - Permite reabrir, reenviar por WhatsApp ou converter orcamento pendente em operacao.
+- Permite excluir orcamento manualmente com senha de exclusao, removendo tambem o PDF.
 - Cron horario remove automaticamente orcamentos pendentes vencidos apos 24 horas, apagando tambem o PDF salvo.
 
 ### Vendas
@@ -336,6 +337,7 @@ Authorization: Bearer <token>
 | GET | `/api/orcamentos/:id` | Reabre orcamento e recalcula parcelas |
 | POST | `/api/orcamentos/:id/enviar` | Envia PDF pelo WhatsApp |
 | POST | `/api/orcamentos/:id/converter` | Marca orcamento como convertido |
+| DELETE | `/api/orcamentos/:id` | Exclui orcamento com senha e remove PDF |
 
 ### Vendas
 

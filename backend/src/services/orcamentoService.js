@@ -143,6 +143,19 @@ class OrcamentoService {
     return atualizado;
   }
 
+  async excluir(id) {
+    const orcamento = await prisma.orcamento.findUnique({ where: { id } });
+    if (!orcamento) throw new Error('Orcamento nao encontrado');
+
+    await prisma.$transaction([
+      prisma.arquivoPdf.deleteMany({ where: { origemTipo: 'Orcamento', origemId: id } }),
+      prisma.orcamento.delete({ where: { id } }),
+    ]);
+    storageService.removerArquivo(orcamento.caminhoPdf);
+    logger.warn('Orcamento excluido manualmente', { orcamentoId: id, caminhoPdf: orcamento.caminhoPdf });
+    return orcamento;
+  }
+
   async expirarPendentes(agora = new Date()) {
     const vencidos = await prisma.orcamento.findMany({
       where: { status: 'PENDENTE', expiradoEm: { lte: agora } },

@@ -107,7 +107,7 @@ export function ExclusaoModal({ alvo, onClose, onConfirmar }) {
   }
 
   return (
-    <Modal aberto={Boolean(alvo)} titulo={`Excluir ${alvo?.tipo === 'cliente' ? 'cliente' : 'emprestimo'}`} subtitulo={`Tem certeza que deseja excluir ${alvo?.nome || 'este registro'}? Esta acao nao pode ser desfeita.`} icon={Trash2} onClose={onClose}>
+    <Modal aberto={Boolean(alvo)} titulo={`Excluir ${alvo?.tipo === 'cliente' ? 'cliente' : alvo?.tipo === 'orcamento' ? 'orcamento' : 'emprestimo'}`} subtitulo={`Tem certeza que deseja excluir ${alvo?.nome || 'este registro'}? Esta acao nao pode ser desfeita.`} icon={Trash2} onClose={onClose}>
       <form className="modalForm" onSubmit={confirmar}>
         {alvo?.resumo && (
           <div className="warningBox">
