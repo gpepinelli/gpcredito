@@ -33,8 +33,9 @@ function gerarParcelas(valorPrincipal, juros, totalParcelas, dataInicio = new Da
   const amortizacaoBase = arredondar(principal / total);
   let saldoDevedor = principal;
   let amortizacaoDistribuida = 0;
+  const parcelasSac = [];
 
-  return Array.from({ length: total }, (_, i) => {
+  for (let i = 0; i < total; i += 1) {
     const venc = new Date(dataInicio);
     venc.setDate(venc.getDate() + Number(intervaloDias || 30) * (i + 1));
     venc.setHours(23, 59, 59, 0);
@@ -48,7 +49,7 @@ function gerarParcelas(valorPrincipal, juros, totalParcelas, dataInicio = new Da
     saldoDevedor = saldoDepois;
     amortizacaoDistribuida = arredondar(amortizacaoDistribuida + amortizacao);
 
-    return {
+    parcelasSac.push({
       numero: i + 1,
       amortizacao,
       valorJuros,
@@ -57,7 +58,21 @@ function gerarParcelas(valorPrincipal, juros, totalParcelas, dataInicio = new Da
       saldoDepois,
       dataVencimento: venc,
       status: 'pendente',
-    };
+    });
+  }
+
+  if (total === 1) return parcelasSac;
+
+  const totalCalculado = arredondar(parcelasSac.reduce((acc, parcela) => acc + parcela.valor, 0));
+  const parcelaFixaBase = arredondar(totalCalculado / total);
+  let valorDistribuido = 0;
+
+  return parcelasSac.map((parcela, index) => {
+    const valor = index === total - 1
+      ? arredondar(totalCalculado - valorDistribuido)
+      : parcelaFixaBase;
+    valorDistribuido = arredondar(valorDistribuido + valor);
+    return { ...parcela, valor };
   });
 }
 

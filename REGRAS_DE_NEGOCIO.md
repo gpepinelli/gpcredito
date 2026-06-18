@@ -102,25 +102,29 @@ Este documento e a referencia funcional do sistema. Quando houver divergencia en
 
 ### Calculo de juros do credito
 
-Credito usa juros amortizado sobre saldo devedor.
+Credito parcelado usa parcela fixa pelo total SAC. O sistema calcula primeiro o total pela regra de juros sobre saldo devedor e depois divide esse total em parcelas iguais.
 
 ```text
 amortizacao = principal / parcelas
 juros da parcela = saldo devedor atual * percentual
-valor da parcela = amortizacao + juros da parcela
+total calculado = soma(amortizacao + juros da parcela)
+valor da parcela fixa = total calculado / parcelas
 saldo devedor novo = saldo devedor atual - amortizacao
 ```
 
 Exemplo com R$ 1.000,00, 30%, 3 parcelas:
 
 ```text
-Parcela 1: saldo 1000,00 -> juros 300,00 -> parcela 633,33
-Parcela 2: saldo 666,67 -> juros 200,00 -> parcela 533,33
-Parcela 3: saldo 333,34 -> juros 100,00 -> parcela 433,34
-Total: 1600,00
+Calculo base SAC:
+Parcela 1: saldo 1000,00 -> juros 300,00 -> base 633,33
+Parcela 2: saldo 666,67 -> juros 200,00 -> base 533,33
+Parcela 3: saldo 333,34 -> juros 100,00 -> base 433,34
+Total calculado: 1600,00
+Parcelamento final: 3x de 533,33, ajustando centavos na ultima parcela.
 ```
 
 - A ultima amortizacao ajusta diferenca de centavos para zerar saldo.
+- A ultima parcela fixa ajusta diferenca de centavos para fechar o total calculado.
 - Credito nao usa juros normal sobre valor total. Essa regra e somente para vendas.
 
 ### Pagamentos

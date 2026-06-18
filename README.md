@@ -160,7 +160,8 @@ O backend serve `frontend/dist` quando o build existe.
 ### Credito
 
 - Juros de credito calculado sobre saldo devedor.
-- Parcelas amortizadas.
+- Operacoes parceladas usam parcela fixa pelo total SAC calculado.
+- O total e calculado pela amortizacao sobre saldo devedor e depois dividido em parcelas iguais.
 - Aceite manual do contrato.
 - Liberacao do dinheiro apos aprovacao.
 - Pagamento manual e pagamento de parcela.
@@ -281,7 +282,8 @@ Credito:
 
 ```text
 Juros da parcela = saldo devedor atual * percentual
-Parcela = amortizacao do principal + juros da parcela
+Total calculado = soma(amortizacao do principal + juros da parcela)
+Parcela fixa = total calculado / quantidade de parcelas
 ```
 
 Venda de item:

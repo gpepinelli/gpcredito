@@ -3,11 +3,11 @@ const test = require('node:test');
 
 const { gerarParcelas, calcularValorTotal, validarCPF } = require('../src/utils/calculadora');
 
-test('gera parcelas de credito com juros sobre saldo devedor', () => {
+test('gera parcelas fixas pelo total SAC calculado sobre saldo devedor', () => {
   const inicio = new Date('2026-05-18T12:00:00.000Z');
   const parcelas = gerarParcelas(1000, 30, 3, inicio);
 
-  assert.deepEqual(parcelas.map((parcela) => parcela.valor), [633.33, 533.33, 433.34]);
+  assert.deepEqual(parcelas.map((parcela) => parcela.valor), [533.33, 533.33, 533.34]);
   assert.deepEqual(parcelas.map((parcela) => parcela.valorJuros), [300, 200, 100]);
   assert.deepEqual(parcelas.map((parcela) => parcela.saldoDepois), [666.67, 333.34, 0]);
   assert.equal(calcularValorTotal(1000, 30, 3), 1600);

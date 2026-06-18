@@ -9,7 +9,7 @@ export function calcularParcelas(valor, juros, totalParcelas, primeiroVencimento
   const amortizacaoBase = Number((principal / qtd).toFixed(2));
   const primeiraData = primeiroVencimento ? new Date(`${primeiroVencimento}T23:59:59`) : null;
 
-  return Array.from({ length: qtd }, (_, index) => {
+  const parcelasSac = Array.from({ length: qtd }, (_, index) => {
     const amortizacao = index === qtd - 1
       ? Number((principal - amortizacaoDistribuida).toFixed(2))
       : Math.min(amortizacaoBase, saldo);
@@ -29,6 +29,20 @@ export function calcularParcelas(valor, juros, totalParcelas, primeiroVencimento
       vencimento,
       saldoDepois: Number(saldo.toFixed(2)),
     };
+  });
+
+  if (qtd === 1) return parcelasSac;
+
+  const totalCalculado = Number(parcelasSac.reduce((acc, parcela) => acc + parcela.valor, 0).toFixed(2));
+  const parcelaFixaBase = Number((totalCalculado / qtd).toFixed(2));
+  let valorDistribuido = 0;
+
+  return parcelasSac.map((parcela, index) => {
+    const valor = index === qtd - 1
+      ? Number((totalCalculado - valorDistribuido).toFixed(2))
+      : parcelaFixaBase;
+    valorDistribuido = Number((valorDistribuido + valor).toFixed(2));
+    return { ...parcela, valor };
   });
 }
 

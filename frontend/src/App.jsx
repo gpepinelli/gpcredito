@@ -547,7 +547,7 @@ function CreditoForm({ clientes, onSalvar, clienteInicial = '', configuracoes = 
           <div className="previewBox">
             <div><span>Principal</span><b>{moeda(form.valor)}</b></div>
             <div><span>Total a pagar</span><b>{moeda(total)}</b></div>
-            <div><span>Parcelamento</span><b>{Number(form.totalParcelas || 1) === 1 ? 'A vista' : `${form.totalParcelas} parcelas variaveis`}</b></div>
+            <div><span>Parcelamento</span><b>{Number(form.totalParcelas || 1) === 1 ? 'A vista' : `${form.totalParcelas} parcelas fixas`}</b></div>
             <div><span>Cliente</span><b>{clienteSelecionado?.nome || '-'}</b></div>
           </div>
           {Number(form.totalParcelas || 1) > 1 && (
