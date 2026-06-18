@@ -55,7 +55,26 @@ const templates = {
     `Olá *${nome}*, estou enviando agora o contrato de empréstimo em PDF.\n\nApós ler, responda *DE ACORDO* para registrar o aceite digital.`,
   orcamento: (nome) =>
     `Ola *${nome}*, segue em anexo a simulacao de credito solicitada.\n\nEste orcamento vale por 24 horas e nao substitui o contrato final.`,
+  recibo: (nome, valor) =>
+    `Ola *${nome}*, recebemos seu pagamento de *${valor}*.\n\nSegue em anexo o recibo em PDF para seu controle.`,
 };
+
+function preencherTemplate(template, variaveis = {}) {
+  return String(template || '').replace(/\{\{(\w+)\}\}/g, (_, chave) => {
+    const valor = variaveis[chave];
+    return valor === undefined || valor === null ? '' : String(valor);
+  });
+}
+
+async function renderizarTemplate(chave, fallback, variaveis = {}) {
+  try {
+    const salvo = await config.getConfig(chave);
+    if (String(salvo || '').trim()) return preencherTemplate(salvo, variaveis);
+  } catch (error) {
+    logger.warn('Falha ao carregar template WhatsApp, usando padrao', { chave, error: error.message });
+  }
+  return typeof fallback === 'function' ? fallback() : String(fallback || '');
+}
 
 function apenasDigitos(valor) {
   return String(valor || '').replace(/\D/g, '');
@@ -303,12 +322,25 @@ class WhatsAppService {
 
   async enviarLembrete(cliente, emprestimo) {
     const { formatarMoeda, formatarData } = require('../../utils/calculadora');
-    return this.adapter.sendMessage(cliente.telefone, templates.lembrete(cliente.nome, formatarMoeda(valorCobranca(emprestimo)), formatarData(vencimentoCobranca(emprestimo))));
+    const valor = formatarMoeda(valorCobranca(emprestimo));
+    const dataVencimento = formatarData(vencimentoCobranca(emprestimo));
+    const mensagem = await renderizarTemplate(
+      'WHATSAPP_TEMPLATE_LEMBRETE',
+      () => templates.lembrete(cliente.nome, valor, dataVencimento),
+      { nome: cliente.nome, valor, dataVencimento }
+    );
+    return this.adapter.sendMessage(cliente.telefone, mensagem);
   }
 
   async enviarCobrancaHoje(cliente, emprestimo) {
     const { formatarMoeda } = require('../../utils/calculadora');
-    return this.adapter.sendMessage(cliente.telefone, templates.vencimentoHoje(cliente.nome, formatarMoeda(valorCobranca(emprestimo))));
+    const valor = formatarMoeda(valorCobranca(emprestimo));
+    const mensagem = await renderizarTemplate(
+      'WHATSAPP_TEMPLATE_VENCIMENTO_HOJE',
+      () => templates.vencimentoHoje(cliente.nome, valor),
+      { nome: cliente.nome, valor }
+    );
+    return this.adapter.sendMessage(cliente.telefone, mensagem);
   }
 
   /**
@@ -316,9 +348,15 @@ class WhatsAppService {
    */
   async enviarPixVencimento(cliente, emprestimo) {
     const { formatarMoeda } = require('../../utils/calculadora');
+    const valor = formatarMoeda(valorCobranca(emprestimo));
+    const mensagem = await renderizarTemplate(
+      'WHATSAPP_TEMPLATE_VENCIMENTO_HOJE',
+      () => templates.vencimentoHoje(cliente.nome, valor),
+      { nome: cliente.nome, valor }
+    );
     return this.adapter.sendMessage(
       cliente.telefone,
-      templates.vencimentoHoje(cliente.nome, formatarMoeda(valorCobranca(emprestimo)))
+      mensagem
     );
   }
 
@@ -329,9 +367,15 @@ class WhatsAppService {
     const { formatarMoeda } = require('../../utils/calculadora');
     const pix = await dadosPixManual();
     if (pix.chave) {
+      const valor = formatarMoeda(valorCobranca(emprestimo));
+      const mensagem = await renderizarTemplate(
+        'WHATSAPP_TEMPLATE_PIX_MANUAL',
+        () => templates.pixManual(valor, pix.chave, pix.nome),
+        { valor, chavePix: pix.chave, nomePix: pix.nome }
+      );
       return this.adapter.sendMessage(
         cliente.telefone,
-        templates.pixManual(formatarMoeda(valorCobranca(emprestimo)), pix.chave, pix.nome)
+        mensagem
       );
     }
 
@@ -349,41 +393,97 @@ class WhatsAppService {
       return false;
     }
 
+    const valor = formatarMoeda(valorCobranca(emprestimo));
+    const mensagem = await renderizarTemplate(
+      'WHATSAPP_TEMPLATE_PIX_MANUAL',
+      () => templates.pixManual(valor, pix.chave, pix.nome),
+      { valor, chavePix: pix.chave, nomePix: pix.nome }
+    );
     return this.adapter.sendMessage(
       cliente.telefone,
-      templates.pixManual(formatarMoeda(valorCobranca(emprestimo)), pix.chave, pix.nome)
+      mensagem
     );
   }
 
   async enviarCobrancaAtraso(cliente, emprestimo, diasAtraso) {
     const { formatarMoeda } = require('../../utils/calculadora');
-    return this.adapter.sendMessage(cliente.telefone, templates.atraso(cliente.nome, formatarMoeda(valorCobranca(emprestimo)), diasAtraso));
+    const valor = formatarMoeda(valorCobranca(emprestimo));
+    const mensagem = await renderizarTemplate(
+      'WHATSAPP_TEMPLATE_ATRASO',
+      () => templates.atraso(cliente.nome, valor, diasAtraso),
+      { nome: cliente.nome, valor, diasAtraso }
+    );
+    return this.adapter.sendMessage(cliente.telefone, mensagem);
   }
 
   async enviarConfirmacao(cliente, pagamento) {
     const { formatarMoeda } = require('../../utils/calculadora');
-    return this.adapter.sendMessage(cliente.telefone, templates.confirmacao(cliente.nome, formatarMoeda(pagamento.valorPago)));
+    const valor = formatarMoeda(pagamento.valorPago);
+    const mensagem = await renderizarTemplate(
+      'WHATSAPP_TEMPLATE_CONFIRMACAO',
+      () => templates.confirmacao(cliente.nome, valor),
+      { nome: cliente.nome, valor }
+    );
+    return this.adapter.sendMessage(cliente.telefone, mensagem);
+  }
+
+  async enviarRecibo(cliente, pagamento, caminhoPdf) {
+    const { formatarMoeda } = require('../../utils/calculadora');
+    const valor = formatarMoeda(pagamento.valorPago);
+    const legenda = await renderizarTemplate(
+      'WHATSAPP_TEMPLATE_RECIBO',
+      () => templates.recibo(cliente.nome, valor),
+      { nome: cliente.nome, valor }
+    );
+    const nomeArquivo = `Recibo_${cliente.nome.replace(/\s+/g, '_')}_${pagamento.id.slice(0, 8)}.pdf`;
+    return this.adapter.sendDocument(cliente.telefone, caminhoPdf, nomeArquivo, legenda);
   }
 
   async enviarRenovacao(cliente) {
-    return this.adapter.sendMessage(cliente.telefone, templates.renovacao(cliente.nome));
+    const mensagem = await renderizarTemplate(
+      'WHATSAPP_TEMPLATE_RENOVACAO',
+      () => templates.renovacao(cliente.nome),
+      { nome: cliente.nome }
+    );
+    return this.adapter.sendMessage(cliente.telefone, mensagem);
   }
 
   async enviarPixGerado(cliente, emprestimo) {
     const { formatarMoeda } = require('../../utils/calculadora');
-    return this.adapter.sendMessage(cliente.telefone, templates.pixGerado(cliente.nome, formatarMoeda(emprestimo.valorTotal), emprestimo.pixCopiaCola));
+    const valor = formatarMoeda(emprestimo.valorTotal);
+    const mensagem = await renderizarTemplate(
+      'WHATSAPP_TEMPLATE_PIX_GERADO',
+      () => templates.pixGerado(cliente.nome, valor, emprestimo.pixCopiaCola),
+      { nome: cliente.nome, valor, copiaCola: emprestimo.pixCopiaCola }
+    );
+    return this.adapter.sendMessage(cliente.telefone, mensagem);
   }
 
   async enviarContrato(cliente, caminhoPdf) {
     const nomeArquivo = `Contrato_Emprestimo_${cliente.nome.replace(/\s+/g, '_')}.pdf`;
-    await this.adapter.sendMessage(cliente.telefone, templates.contratoAviso(cliente.nome));
+    const aviso = await renderizarTemplate(
+      'WHATSAPP_TEMPLATE_CONTRATO_AVISO',
+      () => templates.contratoAviso(cliente.nome),
+      { nome: cliente.nome }
+    );
+    const legenda = await renderizarTemplate(
+      'WHATSAPP_TEMPLATE_CONTRATO',
+      () => templates.contrato(cliente.nome),
+      { nome: cliente.nome }
+    );
+    await this.adapter.sendMessage(cliente.telefone, aviso);
     await new Promise(r => setTimeout(r, 1200));
-    return this.adapter.sendDocument(cliente.telefone, caminhoPdf, nomeArquivo, templates.contrato(cliente.nome));
+    return this.adapter.sendDocument(cliente.telefone, caminhoPdf, nomeArquivo, legenda);
   }
 
   async enviarOrcamento(cliente, caminhoPdf) {
     const nomeArquivo = `Orcamento_${cliente.nome.replace(/\s+/g, '_')}.pdf`;
-    return this.adapter.sendDocument(cliente.telefone, caminhoPdf, nomeArquivo, templates.orcamento(cliente.nome));
+    const legenda = await renderizarTemplate(
+      'WHATSAPP_TEMPLATE_ORCAMENTO',
+      () => templates.orcamento(cliente.nome),
+      { nome: cliente.nome }
+    );
+    return this.adapter.sendDocument(cliente.telefone, caminhoPdf, nomeArquivo, legenda);
   }
 }
 

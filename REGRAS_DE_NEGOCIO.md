@@ -130,6 +130,8 @@ Total: 1600,00
 - Botao "Pagar prox." paga a proxima parcela pendente.
 - Emprestimo so vira `pago` e operacao so vira `QUITADO` quando quitado totalmente.
 - Se uma operacao atrasada receber pagamento parcial, continua `ATRASADO` ate quitar ou ser regularizada por regra futura.
+- Todo pagamento confirmado gera recibo PDF em `storage/recibos/{nome-cliente}/recibo-{parcela-id-ou-pagamento-id}.pdf`.
+- O recibo fica vinculado em `pagamentos.caminho_pdf`, registrado em `arquivos_pdf` com tipo `RECIBO` e pode ser enviado automaticamente pelo WhatsApp.
 - Score e alterado na quitacao total, conforme atraso no vencimento final.
 - Renegociacao de prazo altera o vencimento, registra log administrativo e retorna a operacao para `EM_DIA`.
 - Cobranca WhatsApp em lote pode ser disparada manualmente para operacoes selecionadas.
@@ -147,6 +149,7 @@ Total: 1600,00
 - O painel exibe status do adaptador WhatsApp e mensagens na fila.
 - Se `PIX_CHAVE` estiver configurada, o sistema envia Pix manual.
 - Mercado Pago e opcional; webhook confirma pagamento aprovado quando configurado.
+- Textos de WhatsApp ficam em parametros operacionais e usam placeholders como `{{nome}}`, `{{valor}}`, `{{dataVencimento}}`, `{{diasAtraso}}`, `{{chavePix}}`, `{{nomePix}}` e `{{copiaCola}}`.
 
 ## 5. Orcamentos
 
@@ -284,6 +287,8 @@ Valor da parcela: 100,00
   - atrasados
   - aguardando aceite
   - aprovados para liberar
+- O painel financeiro deve mostrar o capital aprovado e pronto para liberar, somando o principal das operacoes com `statusOperacao = APROVADO`.
+- O painel pode ocultar/mostrar valores financeiros sensiveis no navegador.
 - Linha atrasada e destacada.
 - Pix pode ser copiado com um clique.
 - Detalhe do cliente pode ser impresso.
@@ -311,6 +316,7 @@ Valor da parcela: 100,00
 - Essas pastas devem entrar no backup, mas nao no GitHub.
 - Backup manual/agendavel do PostgreSQL usa `npm run backup:db`, gerando dumps em `backups/`.
 - A tabela `arquivos_pdf` registra cada PDF gerado com tipo, origem, cliente, caminho e data.
+- Pagamentos com recibo tambem devem preencher `pagamentos.caminho_pdf`.
 - O sistema nunca deve sobrescrever PDF existente; quando necessario, adiciona sufixo numerico.
 
 ## 12. Configuracoes operacionais
@@ -361,6 +367,20 @@ Valor da parcela: 100,00
 - `PIX_NOME`
 - `PIX_CIDADE`
 - `MERCADOPAGO_ATIVO`
+
+### WhatsApp
+
+- `WHATSAPP_TEMPLATE_LEMBRETE`
+- `WHATSAPP_TEMPLATE_VENCIMENTO_HOJE`
+- `WHATSAPP_TEMPLATE_PIX_MANUAL`
+- `WHATSAPP_TEMPLATE_ATRASO`
+- `WHATSAPP_TEMPLATE_CONFIRMACAO`
+- `WHATSAPP_TEMPLATE_RECIBO`
+- `WHATSAPP_TEMPLATE_RENOVACAO`
+- `WHATSAPP_TEMPLATE_PIX_GERADO`
+- `WHATSAPP_TEMPLATE_CONTRATO_AVISO`
+- `WHATSAPP_TEMPLATE_CONTRATO`
+- `WHATSAPP_TEMPLATE_ORCAMENTO`
 
 ### Sistema
 

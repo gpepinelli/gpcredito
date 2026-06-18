@@ -101,6 +101,7 @@ function Painel({ dados, resumoVendas, recarregar }) {
               <div className="moneyTile profit"><span>Lucro Gerado</span><strong>{valorPrivado(financeiro.lucroRecebido || 0)}</strong><small>Juros ja recebidos</small></div>
               <div className="moneyTile overdue"><span>Em Atraso</span><strong>{valorPrivado(financeiro.valorAtrasado || 0)}</strong><small>{financeiro.parcelasAtrasadas || 0} parcela(s)</small></div>
               <div className="moneyTile open"><span>Saldo a Receber</span><strong>{valorPrivado(carteiraAberta || 0)}</strong><small>{financeiro.operacoesAtivas || 0} operacao(oes)</small></div>
+              <div className="moneyTile release"><span>Capital a Liberar</span><strong>{valorPrivado(financeiro.valorAguardandoLiberacao || 0)}</strong><small>{financeiro.aguardandoLiberacao || 0} operacao(oes) aprovada(s)</small></div>
             </aside>
           </section>
 

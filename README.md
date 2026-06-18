@@ -20,6 +20,8 @@ backend/
   scripts/
     gerar_contrato.py
     gerar_contrato_exemplo.py
+    gerar_orcamento.py
+    gerar_recibo.py
   src/
     controllers/
     integrations/
@@ -162,6 +164,7 @@ O backend serve `frontend/dist` quando o build existe.
 - Aceite manual do contrato.
 - Liberacao do dinheiro apos aprovacao.
 - Pagamento manual e pagamento de parcela.
+- Confirmacao de pagamento gera recibo PDF em `storage/recibos/`, vincula em `pagamentos.caminho_pdf` e tenta enviar pelo WhatsApp.
 - Botao rapido para pagar proxima parcela.
 - Reenvio de contrato e Pix.
 - Observacao por operacao.
@@ -202,10 +205,11 @@ O backend serve `frontend/dist` quando o build existe.
 - Listagens principais viram cards no mobile para evitar tabela espremida.
 - Ordenacao clicavel em clientes, credito e relatorio de vendas.
 - Tela de configuracoes operacionais dentro do painel administrativo.
-- Configuracoes agrupadas por Credito, Score, Cobranca, Vendas, Pix e Sistema.
+- Configuracoes agrupadas por Credito, Score, Cobranca, Vendas, Pix, WhatsApp e Sistema.
 - Cada parametro tem salvamento individual, restauracao individual e destaque quando foi alterado em relacao ao padrao.
 - Restaurar todos os padroes exige senha de exclusao.
 - Banco, senha admin, senha de exclusao, segredo do token e adaptador WhatsApp continuam no `.env`.
+- Painel financeiro possui ocultacao de valores e mostra capital aprovado para liberar.
 
 ### Configuracoes operacionais
 
@@ -228,9 +232,12 @@ Categorias disponiveis:
 | Cobranca | horarios dos crons, dias de penalidade e renovacao |
 | Vendas | juros normal de venda e valor minimo |
 | Pix | chave, nome, cidade e Mercado Pago ativo |
+| WhatsApp | templates de lembrete, cobranca, atraso, contrato, orcamento, Pix, confirmacao e recibo |
 | Sistema | nome da empresa, expiracao do token, upload, logs e timezone |
 
-Observacao: alteracoes em horarios de cron entram em vigor na proxima inicializacao do backend. Parametros usados em operacoes novas, score, upload e pagamentos passam a valer imediatamente.
+Os templates de WhatsApp aceitam placeholders como `{{nome}}`, `{{valor}}`, `{{dataVencimento}}`, `{{diasAtraso}}`, `{{chavePix}}`, `{{nomePix}}` e `{{copiaCola}}`.
+
+Observacao: alteracoes em horarios de cron entram em vigor na proxima inicializacao do backend. Parametros usados em operacoes novas, score, upload, pagamentos e mensagens passam a valer imediatamente.
 
 ### Organizacao do frontend
 
@@ -257,6 +264,7 @@ storage/
 ```
 
 Os PDFs gerados tambem sao registrados na tabela `arquivos_pdf`, com tipo, cliente, origem, caminho e data de criacao.
+Recibos tambem atualizam o campo `pagamentos.caminho_pdf`, mantendo o pagamento ligado diretamente ao arquivo gerado.
 
 ## Regras de juros
 

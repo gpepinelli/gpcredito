@@ -217,6 +217,7 @@ const CATEGORIAS_CONFIG = [
   ['COBRANCA', 'Cobranca'],
   ['VENDAS', 'Vendas'],
   ['PIX', 'Pix e pagamento'],
+  ['WHATSAPP', 'WhatsApp'],
   ['SISTEMA', 'Sistema'],
 ];
 
@@ -231,6 +232,9 @@ function inputConfig(item, valor, onChange) {
   }
   if (item.tipo === 'TIME') return <input type="time" value={valor || ''} onChange={(event) => onChange(event.target.value)} />;
   if (item.tipo === 'NUMBER') return <input type="number" min={item.min ?? undefined} max={item.max ?? undefined} step="0.01" value={valor ?? ''} onChange={(event) => onChange(event.target.value)} />;
+  if (String(item.chave || '').startsWith('WHATSAPP_TEMPLATE_')) {
+    return <textarea className="configTextarea" rows={6} value={valor ?? ''} onChange={(event) => onChange(event.target.value)} />;
+  }
   return <input type="text" value={valor ?? ''} onChange={(event) => onChange(event.target.value)} />;
 }
 
@@ -295,7 +299,12 @@ export function Configuracoes({ notificar, onAtualizarPadroes }) {
     }
   }
 
-  const lista = configs.filter(item => item.categoria === categoria);
+  const lista = configs.filter(item => {
+    const templateWhatsapp = String(item.chave || '').startsWith('WHATSAPP_TEMPLATE_');
+    if (categoria === 'WHATSAPP') return templateWhatsapp;
+    if (categoria === 'SISTEMA') return item.categoria === 'SISTEMA' && !templateWhatsapp;
+    return item.categoria === categoria;
+  });
 
   return (
     <>

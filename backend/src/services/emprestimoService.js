@@ -9,6 +9,7 @@ const logger = require('../utils/logger');
 const contratoService = require('./contratoService');
 const adminLogService = require('./adminLogService');
 const config = require('./configuracaoService');
+const reciboService = require('./reciboService');
 
 const STATUS_OPERACAO_ABERTA = ['AGUARDANDO_ACEITE', 'APROVADO', 'LIBERADO', 'EM_DIA', 'ATRASADO'];
 const STATUS_OPERACAO_FINALIZADA_SEM_RENOVACAO = ['CANCELADO', 'RECUSADO'];
@@ -224,7 +225,7 @@ class EmprestimoService {
       novoStatus = (contratoQuitado || emprestimo.totalParcelas === 1 || parcelasPendentes === 0) ? 'pago' : 'pendente';
 
       const pagamentoCriado = await tx.pagamento.create({
-        data: { emprestimoId, valorPago, dataPagamento: new Date(dataPagamento), status: 'confirmado' },
+        data: { emprestimoId, parcelaId, valorPago, dataPagamento: new Date(dataPagamento), status: 'confirmado' },
       });
 
       const statusOperacao = novoStatus === 'pago'
@@ -243,6 +244,14 @@ class EmprestimoService {
       const tipoScore = scoreService.determinarTipoScore(diasAtraso);
       await scoreService.aplicarAlteracao(emprestimo.clienteId, tipoScore);
       await whatsapp.enviarConfirmacao(emprestimo.cliente, pagamento);
+    }
+
+    try {
+      const parcela = parcelaId ? emprestimo.parcelas.find(p => p.id === parcelaId) : null;
+      const recibo = await reciboService.gerar({ emprestimo, pagamento, parcela });
+      await whatsapp.enviarRecibo(emprestimo.cliente, pagamento, recibo.caminhoAbsoluto);
+    } catch (error) {
+      logger.error('Erro ao gerar/enviar recibo de pagamento', { emprestimoId, pagamentoId: pagamento.id, error: error.message });
     }
 
     logger.info('âœ… Pagamento confirmado', { emprestimoId, valorPago, novoStatus });
@@ -303,6 +312,13 @@ class EmprestimoService {
       const tipoScore = scoreService.determinarTipoScore(diasAtraso);
       await scoreService.aplicarAlteracao(emprestimo.clienteId, tipoScore);
       await whatsapp.enviarConfirmacao(emprestimo.cliente, pagamento);
+    }
+
+    try {
+      const recibo = await reciboService.gerar({ emprestimo, pagamento, parcela });
+      await whatsapp.enviarRecibo(emprestimo.cliente, pagamento, recibo.caminhoAbsoluto);
+    } catch (error) {
+      logger.error('Erro ao gerar/enviar recibo de parcela', { emprestimoId, parcelaId, pagamentoId: pagamento.id, error: error.message });
     }
 
     logger.info('âœ… Parcela paga', { emprestimoId, parcelaId, valorPago: parcela.valor, novoStatus });
@@ -399,6 +415,7 @@ class EmprestimoService {
       parcelasAtrasadas: 0,
       aguardandoAceite: 0,
       aguardandoLiberacao: 0,
+      valorAguardandoLiberacao: 0,
     };
 
     const ultimasOperacoes = [];
@@ -434,7 +451,10 @@ class EmprestimoService {
       }
 
       if (statusOperacao === 'AGUARDANDO_ACEITE') resumo.aguardandoAceite += 1;
-      if (statusOperacao === 'APROVADO') resumo.aguardandoLiberacao += 1;
+      if (statusOperacao === 'APROVADO') {
+        resumo.aguardandoLiberacao += 1;
+        resumo.valorAguardandoLiberacao += Number(emprestimo.valor || 0);
+      }
 
       if (ultimasOperacoes.length < 6) {
         ultimasOperacoes.push({

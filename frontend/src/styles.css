@@ -129,6 +129,7 @@ nav { padding: 10px 0; display: grid; gap: 6px; overflow-y: auto; }
 .moneyTile.profit { border-color: #bfdbfe; background: #eff6ff; }
 .moneyTile.overdue { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
 .moneyTile.open { border-color: #fde68a; background: #fffbeb; }
+.moneyTile.release { border-color: #c4b5fd; background: #f5f3ff; grid-column: span 2; }
 .operationWorkbench { display: grid; grid-template-columns: minmax(290px, .85fr) minmax(0, 1.45fr); gap: 16px; }
 .queueGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .queueGrid div { min-height: 86px; border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: #f8fafc; display: grid; align-content: space-between; gap: 8px; }
@@ -249,6 +250,7 @@ tr:last-child td { border-bottom: 0; }
 .configCard.changed { border-color: #f59e0b; background: #fffaf0; }
 .configCard strong { font-size: 13px; }
 .configCard p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.35; }
+.configTextarea { min-height: 128px; resize: vertical; line-height: 1.45; }
 .toggleLine { display: flex; align-items: center; gap: 10px; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; background: white; font-weight: 800; }
 .toggleLine input { width: 18px; height: 18px; }
 .toastStack { position: fixed; right: 18px; bottom: 18px; z-index: 80; display: grid; gap: 10px; width: min(360px, calc(100vw - 36px)); }
@@ -360,6 +362,7 @@ tbody tr:hover td {
   .commandTabs { grid-template-columns: 1fr; }
   .ledgerPanel { min-height: 220px; padding: 18px; }
   .ledgerStats, .queueGrid, .moneySnapshot { grid-template-columns: 1fr; }
+  .moneyTile.release { grid-column: auto; }
   .compactRow { grid-template-columns: 1fr; gap: 6px; align-items: start; }
   .salesLane { grid-template-columns: 28px 1fr; }
   .salesLane strong, .salesLane small { grid-column: 2; }
