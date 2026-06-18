@@ -664,6 +664,7 @@ class EmprestimoService {
 
     await prisma.$transaction([
       prisma.promessaPagamento.deleteMany({ where: { emprestimoId } }),
+      prisma.pixCobranca.deleteMany({ where: { emprestimoId } }),
       prisma.pagamento.deleteMany({ where: { emprestimoId } }),
       prisma.contratoOperacao.deleteMany({ where: { emprestimoId } }),
       prisma.parcela.deleteMany({ where: { emprestimoId } }),

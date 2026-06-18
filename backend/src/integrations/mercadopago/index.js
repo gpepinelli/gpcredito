@@ -1,5 +1,5 @@
 // src/integrations/mercadopago/index.js
-// Integração com Mercado Pago para geração e recebimento de Pix
+// Integracao com Mercado Pago para geracao e confirmacao de Pix.
 
 const logger = require('../../utils/logger');
 const config = require('../../services/configuracaoService');
@@ -15,31 +15,26 @@ class MercadoPagoService {
     this.accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
     this.baseUrl = 'https://api.mercadopago.com';
     this.simulado = !this.accessToken || this.accessToken.includes('seu-token');
-    
+
     if (this.simulado) {
-      logger.warn('⚠️  Mercado Pago em modo SIMULADO. Configure MERCADOPAGO_ACCESS_TOKEN no .env');
+      logger.warn('Mercado Pago em modo SIMULADO. Configure MERCADOPAGO_ACCESS_TOKEN no .env');
     }
   }
 
-  /**
-   * Gera um Pix para o empréstimo
-   * @param {Object} emprestimo - Dados do empréstimo
-   * @param {Object} cliente - Dados do cliente
-   * @returns {Object} { qrCode, copiaCola, paymentId }
-   */
-  async gerarPix(emprestimo, cliente) {
+  async gerarPix(emprestimo, cliente, opcoes = {}) {
     const ativo = await config.getConfigBoolean('MERCADOPAGO_ATIVO');
     if (!ativo || this.simulado) {
-      return this._simularPix(emprestimo, cliente);
+      return this._simularPix(emprestimo, cliente, opcoes);
     }
 
     try {
+      const valor = Number(opcoes.valor || emprestimo.valorTotal);
       const body = {
-        transaction_amount: emprestimo.valorTotal,
-        description: `Empréstimo - ${cliente.nome}`,
+        transaction_amount: valor,
+        description: opcoes.descricao || `Emprestimo - ${cliente.nome}`,
         payment_method_id: 'pix',
         payer: {
-          email: `${cliente.telefone}@emprestimo.com`, // Email fictício obrigatório pela API
+          email: `${cliente.telefone}@gpcredito.com`,
           first_name: cliente.nome.split(' ')[0],
           last_name: cliente.nome.split(' ').slice(1).join(' ') || 'Cliente',
           identification: {
@@ -48,15 +43,15 @@ class MercadoPagoService {
           },
         },
         notification_url: montarWebhookUrl(),
-        external_reference: emprestimo.id, // Para identificar no webhook
+        external_reference: opcoes.externalReference || emprestimo.id,
       };
 
       const response = await fetch(`${this.baseUrl}/v1/payments`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
+          Authorization: `Bearer ${this.accessToken}`,
           'Content-Type': 'application/json',
-          'X-Idempotency-Key': emprestimo.id, // Evita duplicidade
+          'X-Idempotency-Key': opcoes.idempotencyKey || emprestimo.id,
         },
         body: JSON.stringify(body),
       });
@@ -67,7 +62,7 @@ class MercadoPagoService {
         throw new Error(data.message || 'Erro ao gerar Pix');
       }
 
-      logger.info('✅ Pix gerado com sucesso', { emprestimoId: emprestimo.id, paymentId: data.id });
+      logger.info('Pix Mercado Pago gerado', { emprestimoId: emprestimo.id, paymentId: data.id, valor });
 
       return {
         qrCode: data.point_of_interaction?.transaction_data?.qr_code_base64,
@@ -80,11 +75,6 @@ class MercadoPagoService {
     }
   }
 
-  /**
-   * Verifica e processa um webhook do Mercado Pago
-   * @param {string} paymentId - ID do pagamento recebido no webhook
-   * @returns {Object} Dados do pagamento
-   */
   async verificarPagamento(paymentId) {
     if (this.simulado) {
       return this._simularVerificacao(paymentId);
@@ -93,7 +83,7 @@ class MercadoPagoService {
     try {
       const response = await fetch(`${this.baseUrl}/v1/payments/${paymentId}`, {
         headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
+          Authorization: `Bearer ${this.accessToken}`,
         },
       });
 
@@ -104,7 +94,7 @@ class MercadoPagoService {
       }
 
       return {
-        status: data.status, // 'approved', 'pending', 'rejected'
+        status: data.status,
         emprestimoId: data.external_reference,
         valorPago: data.transaction_amount,
         dataPagamento: data.date_approved,
@@ -115,15 +105,12 @@ class MercadoPagoService {
     }
   }
 
-  // ============================================================
-  // SIMULAÇÕES para desenvolvimento (sem precisar de conta real)
-  // ============================================================
-  _simularPix(emprestimo, cliente) {
-    const fakeId = `FAKE-${Date.now()}`;
-    logger.info('💡 [SIMULADO] Pix gerado', { emprestimoId: emprestimo.id });
+  _simularPix(emprestimo, cliente, opcoes = {}) {
+    const fakeId = opcoes.idempotencyKey || `FAKE-${Date.now()}`;
+    logger.info('[SIMULADO] Pix gerado', { emprestimoId: emprestimo.id, valor: opcoes.valor || emprestimo.valorTotal });
     return {
       qrCode: null,
-      copiaCola: `00020126580014BR.GOV.BCB.PIX0136${fakeId}5204000053039865802BR5913${cliente.nome.substring(0,13)}6008BRASILIA62070503***6304FAKE`,
+      copiaCola: `00020126580014BR.GOV.BCB.PIX0136${fakeId}5204000053039865802BR5913${cliente.nome.substring(0, 13)}6008BRASILIA62070503***6304FAKE`,
       paymentId: fakeId,
     };
   }
@@ -131,7 +118,7 @@ class MercadoPagoService {
   _simularVerificacao(paymentId) {
     return {
       status: 'approved',
-      emprestimoId: null, // Precisará ser resolvido por outro meio em simulação
+      emprestimoId: null,
       valorPago: 0,
       dataPagamento: new Date().toISOString(),
     };

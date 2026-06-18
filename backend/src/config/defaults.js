@@ -52,6 +52,7 @@ const CONFIG_DEFINITIONS = [
   { chave: 'PIX_NOME', valor: '', tipo: TIPO.STRING, categoria: CATEGORIA.PIX, descricao: 'Nome do recebedor Pix', obrigatorio: false },
   { chave: 'PIX_CIDADE', valor: 'SAO PAULO', tipo: TIPO.STRING, categoria: CATEGORIA.PIX, descricao: 'Cidade do recebedor Pix', obrigatorio: false },
   { chave: 'MERCADOPAGO_ATIVO', valor: 'false', tipo: TIPO.BOOLEAN, categoria: CATEGORIA.PIX, descricao: 'Habilita integracao Mercado Pago', obrigatorio: true },
+  { chave: 'PIX_AUTOMATICO_VENCIMENTO', valor: 'false', tipo: TIPO.BOOLEAN, categoria: CATEGORIA.PIX, descricao: 'Gera e envia Pix Mercado Pago automaticamente no vencimento', obrigatorio: true },
 
   { chave: 'NOME_EMPRESA', valor: 'GPCredito', tipo: TIPO.STRING, categoria: CATEGORIA.SISTEMA, descricao: 'Nome exibido em contratos e mensagens', obrigatorio: true },
   { chave: 'TOKEN_EXPIRACAO_HORAS', valor: '8', tipo: TIPO.NUMBER, categoria: CATEGORIA.SISTEMA, descricao: 'Duracao da sessao admin em horas', obrigatorio: true, min: 1 },

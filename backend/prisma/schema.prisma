@@ -101,6 +101,7 @@ model Emprestimo {
 
   cliente   Cliente    @relation(fields: [clienteId], references: [id])
   pagamentos Pagamento[]
+  pixCobrancas PixCobranca[]
   parcelas   Parcela[]
   contratos  ContratoOperacao[]
   carteiraMovimentacoes CarteiraMovimentacao[]
@@ -164,6 +165,7 @@ model Parcela {
 
   emprestimo Emprestimo @relation(fields: [emprestimoId], references: [id])
   pagamentos Pagamento[]
+  pixCobrancas PixCobranca[]
 
   @@map("parcelas")
 }
@@ -291,6 +293,27 @@ model PromessaPagamento {
   @@map("promessas_pagamento")
 }
 
+model PixCobranca {
+  id            String   @id @default(uuid())
+  emprestimoId  String   @map("emprestimo_id")
+  parcelaId     String?  @map("parcela_id")
+  paymentId     String   @unique @map("payment_id")
+  valor         Float
+  copiaCola     String?  @map("copia_cola")
+  qrCode        String?  @map("qr_code")
+  status        StatusPixCobranca @default(PENDENTE)
+  criadoEm      DateTime @default(now()) @map("criado_em")
+  pagoEm        DateTime? @map("pago_em")
+
+  emprestimo Emprestimo @relation(fields: [emprestimoId], references: [id])
+  parcela    Parcela?   @relation(fields: [parcelaId], references: [id])
+
+  @@index([emprestimoId])
+  @@index([parcelaId])
+  @@index([status])
+  @@map("pix_cobrancas")
+}
+
 enum StatusEmprestimo {
   pendente
   pago
@@ -396,4 +419,11 @@ enum StatusPromessaPagamento {
   CUMPRIDA
   NAO_CUMPRIDA
   CANCELADA
+}
+
+enum StatusPixCobranca {
+  PENDENTE
+  PAGO
+  CANCELADO
+  EXPIRADO
 }

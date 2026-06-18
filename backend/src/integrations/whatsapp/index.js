@@ -405,6 +405,21 @@ class WhatsAppService {
     );
   }
 
+  async enviarPixMercadoPago(cliente, emprestimo, cobranca) {
+    const { formatarMoeda } = require('../../utils/calculadora');
+    if (!cobranca?.copiaCola) {
+      logger.warn('Cobranca Pix sem copia e cola', { clienteId: cliente.id, emprestimoId: emprestimo.id, cobrancaId: cobranca?.id });
+      return false;
+    }
+    const valor = formatarMoeda(cobranca.valor);
+    const mensagem = await renderizarTemplate(
+      'WHATSAPP_TEMPLATE_PIX_GERADO',
+      () => templates.pixGerado(cliente.nome, valor, cobranca.copiaCola),
+      { nome: cliente.nome, valor, copiaCola: cobranca.copiaCola }
+    );
+    return this.adapter.sendMessage(cliente.telefone, mensagem);
+  }
+
   async enviarCobrancaAtraso(cliente, emprestimo, diasAtraso) {
     const { formatarMoeda } = require('../../utils/calculadora');
     const valor = formatarMoeda(valorCobranca(emprestimo));

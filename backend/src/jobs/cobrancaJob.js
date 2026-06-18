@@ -8,6 +8,7 @@ const whatsapp = require('../integrations/whatsapp');
 const emprestimoService = require('../services/emprestimoService');
 const orcamentoService = require('../services/orcamentoService');
 const scoreService = require('../services/scoreService');
+const pixCobrancaService = require('../services/pixCobrancaService');
 const config = require('../services/configuracaoService');
 const logger = require('../utils/logger');
 
@@ -29,7 +30,7 @@ async function verificarVencimentos() {
     where: {
       status: { in: ['pendente', 'atrasado'] },
     },
-    include: { cliente: true },
+    include: { cliente: true, parcelas: { orderBy: { numero: 'asc' } } },
   });
 
   let lembretes = 0;
@@ -37,7 +38,19 @@ async function verificarVencimentos() {
   let cobrancasAtraso = 0;
   let marcadosAtrasados = 0;
 
-  const diasPenalidade = await config.getConfigNumber('DIAS_INADIMPLENCIA_PENALIDADE');
+  const [diasPenalidade, mercadoPagoAtivo, pixAutomatico] = await Promise.all([
+    config.getConfigNumber('DIAS_INADIMPLENCIA_PENALIDADE'),
+    config.getConfigBoolean('MERCADOPAGO_ATIVO'),
+    config.getConfigBoolean('PIX_AUTOMATICO_VENCIMENTO'),
+  ]);
+
+  async function enviarPix(emp) {
+    if (mercadoPagoAtivo && pixAutomatico) {
+      const resultado = await pixCobrancaService.gerarEEnviar(emp);
+      return Boolean(resultado.enviado);
+    }
+    return whatsapp.enviarPixManual(emp.cliente, emp);
+  }
 
   for (const emp of emprestimos) {
     const diasAtraso = calcularDiasAtraso(emp.dataVencimento);
@@ -50,12 +63,12 @@ async function verificarVencimentos() {
       } else if (venceAmanha) {
         // Vence amanha: lembrete + Pix manual do credor
         await whatsapp.enviarLembrete(emp.cliente, emp);
-        if (await whatsapp.enviarPixManual(emp.cliente, emp)) pixEnviados++;
+        if (await enviarPix(emp)) pixEnviados++;
         lembretes++;
       } else if (diasAtraso === 0) {
         // Vence hoje: aviso + Pix manual do credor
         await whatsapp.enviarCobrancaHoje(emp.cliente, emp);
-        if (await whatsapp.enviarPixManual(emp.cliente, emp)) pixEnviados++;
+        if (await enviarPix(emp)) pixEnviados++;
       } else if (diasAtraso > 0) {
         // Atrasado → cobrança firme + marca como atrasado
         if (emp.status !== 'atrasado') {
@@ -66,7 +79,7 @@ async function verificarVencimentos() {
           marcadosAtrasados++;
         }
         await whatsapp.enviarCobrancaAtraso(emp.cliente, emp, diasAtraso);
-        if (await whatsapp.enviarPixManual(emp.cliente, emp)) pixEnviados++;
+        if (await enviarPix(emp)) pixEnviados++;
         cobrancasAtraso++;
 
         if (diasAtraso >= diasPenalidade && !emp.scorePenalizadoInadimplenciaEm) {

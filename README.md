@@ -237,7 +237,7 @@ Categorias disponiveis:
 | Score | score inicial, faixas de risco e pontuacoes por pagamento/atraso |
 | Cobranca | horarios dos crons, dias de penalidade e renovacao |
 | Vendas | juros normal de venda e valor minimo |
-| Pix | chave, nome, cidade e Mercado Pago ativo |
+| Pix | chave, nome, cidade, Mercado Pago ativo e Pix automatico no vencimento |
 | WhatsApp | templates de lembrete, cobranca, atraso, contrato, orcamento, Pix, confirmacao e recibo |
 | Sistema | nome da empresa, expiracao do token, upload, logs e timezone |
 

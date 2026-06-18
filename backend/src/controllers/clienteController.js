@@ -253,6 +253,7 @@ class ClienteController {
 
       await prisma.$transaction([
         prisma.promessaPagamento.deleteMany({ where: { clienteId: id } }),
+        prisma.pixCobranca.deleteMany({ where: { emprestimoId: { in: emprestimoIds } } }),
         prisma.pagamento.deleteMany({ where: { emprestimoId: { in: emprestimoIds } } }),
         prisma.contratoOperacao.deleteMany({ where: { clienteId: id } }),
         prisma.documentoCliente.deleteMany({ where: { clienteId: id } }),

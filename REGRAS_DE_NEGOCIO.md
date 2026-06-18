@@ -156,6 +156,8 @@ Parcelamento final: 3x de 533,33, ajustando centavos na ultima parcela.
 - O painel exibe status do adaptador WhatsApp e mensagens na fila.
 - Se `PIX_CHAVE` estiver configurada, o sistema envia Pix manual.
 - Mercado Pago e opcional; webhook confirma pagamento aprovado quando configurado.
+- `PIX_AUTOMATICO_VENCIMENTO=true` com `MERCADOPAGO_ATIVO=true` faz o cron gerar Pix Mercado Pago para a proxima parcela vencida e enviar pelo WhatsApp.
+- Cada Pix automatico fica registrado em `pix_cobrancas`, vinculado a operacao/parcela e processado pelo webhook quando pago.
 - Textos de WhatsApp ficam em parametros operacionais e usam placeholders como `{{nome}}`, `{{valor}}`, `{{dataVencimento}}`, `{{diasAtraso}}`, `{{chavePix}}`, `{{nomePix}}` e `{{copiaCola}}`.
 
 ## 5. Orcamentos
