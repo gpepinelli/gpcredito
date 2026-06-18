@@ -16,6 +16,7 @@ const TIPO = {
 
 const CONFIG_DEFINITIONS = [
   { chave: 'JUROS_PADRAO', valor: '30', tipo: TIPO.NUMBER, categoria: CATEGORIA.CREDITO, descricao: 'Percentual de juros pre-preenchido ao criar nova operacao', obrigatorio: true, min: 0, max: 100 },
+  { chave: 'CARTEIRA_OPERACIONAL', valor: '0', tipo: TIPO.NUMBER, categoria: CATEGORIA.CREDITO, descricao: 'Capital proprio reservado para operar credito e liberacoes', obrigatorio: true, min: 0 },
   { chave: 'JUROS_MINIMO', valor: '0', tipo: TIPO.NUMBER, categoria: CATEGORIA.CREDITO, descricao: 'Menor percentual de juros permitido', obrigatorio: true, min: 0 },
   { chave: 'JUROS_MAXIMO', valor: '100', tipo: TIPO.NUMBER, categoria: CATEGORIA.CREDITO, descricao: 'Maior percentual de juros permitido', obrigatorio: true, min: 0 },
   { chave: 'VALOR_MINIMO_EMPRESTIMO', valor: '10', tipo: TIPO.NUMBER, categoria: CATEGORIA.CREDITO, descricao: 'Valor minimo para criar operacao de credito', obrigatorio: true, min: 0 },

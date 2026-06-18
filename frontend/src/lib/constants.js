@@ -13,6 +13,7 @@ export const JUROS_NORMAL_VENDA = 30;
 
 export const CONFIG_PADRAO = {
   jurosCreditoPadrao: '30',
+  carteiraOperacional: '0',
   diasParaVencerPadrao: '30',
   parcelasCreditoPadrao: '3',
   parcelasVendaPadrao: '10',

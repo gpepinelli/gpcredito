@@ -288,6 +288,8 @@ Valor da parcela: 100,00
   - aguardando aceite
   - aprovados para liberar
 - O painel financeiro deve mostrar o capital aprovado e pronto para liberar, somando o principal das operacoes com `statusOperacao = APROVADO`.
+- A carteira operacional e manual, vem de `CARTEIRA_OPERACIONAL` e representa o capital proprio reservado pelo admin para operar.
+- O saldo da carteira e calculado como `CARTEIRA_OPERACIONAL - capital aprovado para liberar`.
 - O painel pode ocultar/mostrar valores financeiros sensiveis no navegador.
 - Linha atrasada e destacada.
 - Pix pode ser copiado com um clique.
@@ -323,6 +325,7 @@ Valor da parcela: 100,00
 
 ### Credito
 
+- `CARTEIRA_OPERACIONAL`
 - `JUROS_PADRAO`
 - `JUROS_MINIMO`
 - `JUROS_MAXIMO`

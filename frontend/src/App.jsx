@@ -28,7 +28,7 @@ import { calcularParcelas, operacaoPendente } from './lib/finance.js';
 import { dataCurta, moeda } from './lib/format.js';
 import { Configuracoes, RelatorioVendas, Relatorios } from './pages/reports.jsx';
 
-function Painel({ dados, resumoVendas, recarregar }) {
+function Painel({ dados, resumoVendas, recarregar, configuracoes = CONFIG_PADRAO }) {
   const [visao, setVisao] = useState('financeiro');
   const [mostrarValores, setMostrarValores] = useState(() => localStorage.getItem('gp_mostrar_valores') !== 'false');
   const faturamentoVendas = Object.values(resumoVendas?.porTipo || {}).reduce((acc, item) => acc + item.faturamento, 0);
@@ -41,6 +41,9 @@ function Painel({ dados, resumoVendas, recarregar }) {
   const aguardandoAceite = dados.emprestimos.filter((item) => item.statusOperacao === 'AGUARDANDO_ACEITE');
   const aguardandoLiberacao = dados.emprestimos.filter((item) => item.statusOperacao === 'APROVADO');
   const carteiraAberta = financeiro.valorEmAberto ?? operacoesPendentes.reduce((acc, item) => acc + Number(item.saldoDevedor || item.valorTotal || 0), 0);
+  const carteiraOperacional = Number(configuracoes.carteiraOperacional || 0);
+  const capitalALiberar = Number(financeiro.valorAguardandoLiberacao || 0);
+  const saldoCarteira = carteiraOperacional - capitalALiberar;
   const vendasPorTipo = TIPOS.map((tipo) => ({ tipo, dados: resumoVendas?.porTipo?.[tipo.id] || {} }));
   const ultimasOperacoes = (ultimasFinanceiro.length ? ultimasFinanceiro : [...dados.emprestimos]
     .sort((a, b) => new Date(b.criadoEm || b.dataCriacao || 0) - new Date(a.criadoEm || a.dataCriacao || 0))
@@ -101,7 +104,9 @@ function Painel({ dados, resumoVendas, recarregar }) {
               <div className="moneyTile profit"><span>Lucro Gerado</span><strong>{valorPrivado(financeiro.lucroRecebido || 0)}</strong><small>Juros ja recebidos</small></div>
               <div className="moneyTile overdue"><span>Em Atraso</span><strong>{valorPrivado(financeiro.valorAtrasado || 0)}</strong><small>{financeiro.parcelasAtrasadas || 0} parcela(s)</small></div>
               <div className="moneyTile open"><span>Saldo a Receber</span><strong>{valorPrivado(carteiraAberta || 0)}</strong><small>{financeiro.operacoesAtivas || 0} operacao(oes)</small></div>
-              <div className="moneyTile release"><span>Capital a Liberar</span><strong>{valorPrivado(financeiro.valorAguardandoLiberacao || 0)}</strong><small>{financeiro.aguardandoLiberacao || 0} operacao(oes) aprovada(s)</small></div>
+              <div className="moneyTile wallet"><span>Carteira Operacional</span><strong>{valorPrivado(carteiraOperacional)}</strong><small>Capital proprio configurado</small></div>
+              <div className="moneyTile release"><span>Pronto para Liberar</span><strong>{valorPrivado(capitalALiberar)}</strong><small>{financeiro.aguardandoLiberacao || 0} operacao(oes) aprovada(s)</small></div>
+              <div className={saldoCarteira < 0 ? 'moneyTile wallet negative' : 'moneyTile wallet balance'}><span>Saldo da Carteira</span><strong>{valorPrivado(saldoCarteira)}</strong><small>Apos liberacoes aprovadas</small></div>
             </aside>
           </section>
 
@@ -910,6 +915,7 @@ export default function App() {
     setConfiguracoes((atuais) => ({
       ...atuais,
       jurosCreditoPadrao: mapa.JUROS_PADRAO ?? atuais.jurosCreditoPadrao,
+      carteiraOperacional: mapa.CARTEIRA_OPERACIONAL ?? atuais.carteiraOperacional,
       diasParaVencerPadrao: mapa.DIAS_PRIMEIRO_VENCIMENTO ?? atuais.diasParaVencerPadrao,
       parcelasCreditoPadrao: mapa.PARCELAS_MINIMAS ?? atuais.parcelasCreditoPadrao,
       parcelasVendaPadrao: atuais.parcelasVendaPadrao,
@@ -1216,7 +1222,7 @@ export default function App() {
       globalSearch={<GlobalSearch query={buscaGlobal} setQuery={setBuscaGlobal} resultados={resultadosGlobais} onOpenCliente={(id) => { setClienteDetalhe(id); setBuscaGlobal(''); }} onOpenOperacao={abrirResultadoOperacao} />}
     >
       {erro && <div className="errorBanner">{erro}</div>}
-      {active === 'painel' && <Painel dados={dados} resumoVendas={resumoVendas} recarregar={carregar} />}
+      {active === 'painel' && <Painel dados={dados} resumoVendas={resumoVendas} recarregar={carregar} configuracoes={configuracoes} />}
       {active === 'tarefas' && <TarefasHoje emprestimos={dados.emprestimos} abrirPagar={setPagamento} aceitarManual={aceitarManual} liberarDinheiro={liberarDinheiro} reenviarPix={reenviarPix} />}
       {active === 'orcamentos' && <Orcamentos clientes={dados.clientes} configuracoes={configuracoes} notificar={notificar} converterOrcamento={converterOrcamento} refreshKey={orcamentosRefreshKey} excluirOrcamento={(orcamento) => setExclusao({ tipo: 'orcamento', id: orcamento.id, nome: `orcamento de ${orcamento.cliente?.nome || 'simulacao'}`, resumo: `Valor ${moeda(orcamento.valor)}, ${orcamento.parcelas} parcela(s), status ${orcamento.status}. O PDF salvo tambem sera removido.` })} />}
       {active === 'clientes' && <Clientes clientes={dados.clientes} salvarCliente={salvarCliente} verCliente={setClienteDetalhe} onUnauthorized={encerrarSessao} filtros={filtrosClientes} setFiltros={setFiltrosClientes} paginacao={paginacaoClientes} excluirCliente={(cliente) => setExclusao({ tipo: 'cliente', id: cliente.id, nome: cliente.nome, resumo: `Este cliente tem ${cliente.emprestimos?.length || 0} operacao(oes) aberta(s) vinculada(s). Documentos, contratos, parcelas, pagamentos e vendas vinculadas tambem serao removidos.` })} />}

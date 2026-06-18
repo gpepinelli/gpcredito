@@ -209,7 +209,7 @@ O backend serve `frontend/dist` quando o build existe.
 - Cada parametro tem salvamento individual, restauracao individual e destaque quando foi alterado em relacao ao padrao.
 - Restaurar todos os padroes exige senha de exclusao.
 - Banco, senha admin, senha de exclusao, segredo do token e adaptador WhatsApp continuam no `.env`.
-- Painel financeiro possui ocultacao de valores e mostra capital aprovado para liberar.
+- Painel financeiro possui ocultacao de valores, carteira operacional configuravel, capital aprovado para liberar e saldo restante da carteira.
 
 ### Configuracoes operacionais
 
@@ -227,7 +227,7 @@ Categorias disponiveis:
 
 | Categoria | Exemplos |
 |---|---|
-| Credito | juros padrao, limites de juros/valor/parcelas, vencimento e multiplas operacoes |
+| Credito | carteira operacional, juros padrao, limites de juros/valor/parcelas, vencimento e multiplas operacoes |
 | Score | score inicial, faixas de risco e pontuacoes por pagamento/atraso |
 | Cobranca | horarios dos crons, dias de penalidade e renovacao |
 | Vendas | juros normal de venda e valor minimo |
