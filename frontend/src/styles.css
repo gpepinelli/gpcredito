@@ -57,6 +57,7 @@ nav { padding: 10px 0; display: grid; gap: 6px; overflow-y: auto; }
 .pageHeader { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
 .pageHeader h2 { margin: 0; font-size: 22px; letter-spacing: 0; }
 .pageHeader p { margin: 4px 0 0; color: var(--muted); }
+.headerActions { display: inline-flex; align-items: center; gap: 8px; }
 
 .primaryButton, .ghostButton, .smallButton, .iconButton, .dangerButton { border-radius: 7px; min-height: 38px; border: 1px solid transparent; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 13px; font-weight: 700; }
 .primaryButton { background: var(--primary); color: white; }

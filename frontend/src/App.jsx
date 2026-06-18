@@ -5,6 +5,7 @@ import {
   CircleDollarSign,
   ClipboardList,
   Eye,
+  EyeOff,
   FileText,
   Home,
   PackagePlus,
@@ -29,6 +30,7 @@ import { Configuracoes, RelatorioVendas, Relatorios } from './pages/reports.jsx'
 
 function Painel({ dados, resumoVendas, recarregar }) {
   const [visao, setVisao] = useState('financeiro');
+  const [mostrarValores, setMostrarValores] = useState(() => localStorage.getItem('gp_mostrar_valores') !== 'false');
   const faturamentoVendas = Object.values(resumoVendas?.porTipo || {}).reduce((acc, item) => acc + item.faturamento, 0);
   const lucroVendas = Object.values(resumoVendas?.porTipo || {}).reduce((acc, item) => acc + item.lucro, 0);
   const alertas = dados.alertas || {};
@@ -43,13 +45,30 @@ function Painel({ dados, resumoVendas, recarregar }) {
   const ultimasOperacoes = (ultimasFinanceiro.length ? ultimasFinanceiro : [...dados.emprestimos]
     .sort((a, b) => new Date(b.criadoEm || b.dataCriacao || 0) - new Date(a.criadoEm || a.dataCriacao || 0))
     .slice(0, 5));
+  const valorPrivado = (valor) => mostrarValores ? moeda(valor) : 'R$ ••••••';
+
+  useEffect(() => {
+    localStorage.setItem('gp_mostrar_valores', mostrarValores ? 'true' : 'false');
+  }, [mostrarValores]);
 
   return (
     <>
       <PageHeader
         title="Painel"
         subtitle="Resumo financeiro, carteira ativa e prioridades operacionais."
-        action={<button className="iconButton" onClick={recarregar} title="Atualizar"><RefreshCw size={18} /></button>}
+        action={
+          <div className="headerActions">
+            <button
+              className="iconButton"
+              onClick={() => setMostrarValores((atual) => !atual)}
+              title={mostrarValores ? 'Ocultar valores' : 'Mostrar valores'}
+              aria-label={mostrarValores ? 'Ocultar valores' : 'Mostrar valores'}
+            >
+              {mostrarValores ? <Eye size={18} /> : <EyeOff size={18} />}
+            </button>
+            <button className="iconButton" onClick={recarregar} title="Atualizar"><RefreshCw size={18} /></button>
+          </div>
+        }
       />
       <div className="commandTabs" role="tablist" aria-label="Visao do painel">
         <button className={visao === 'financeiro' ? 'active' : ''} type="button" onClick={() => setVisao('financeiro')}>
@@ -68,20 +87,20 @@ function Painel({ dados, resumoVendas, recarregar }) {
                 <span>Capital Liberado</span>
                 <BadgeDollarSign size={22} />
               </div>
-              <strong>{moeda(financeiro.totalColocadoRua || 0)}</strong>
+              <strong>{valorPrivado(financeiro.totalColocadoRua || 0)}</strong>
               <p>Total principal liberado em operacoes de credito.</p>
               <div className="ledgerStats">
-                <div><span>Total Contratado</span><b>{moeda(financeiro.totalContratado || 0)}</b></div>
-                <div><span>Em Aberto</span><b>{moeda(carteiraAberta || 0)}</b></div>
-                <div><span>Juros a Receber</span><b>{moeda(financeiro.jurosAReceber || 0)}</b></div>
+                <div><span>Total Contratado</span><b>{valorPrivado(financeiro.totalContratado || 0)}</b></div>
+                <div><span>Em Aberto</span><b>{valorPrivado(carteiraAberta || 0)}</b></div>
+                <div><span>Juros a Receber</span><b>{valorPrivado(financeiro.jurosAReceber || 0)}</b></div>
               </div>
             </article>
 
             <aside className="moneySnapshot">
-              <div className="moneyTile received"><span>Recebido</span><strong>{moeda(financeiro.totalRecebido || 0)}</strong><small>Pagamentos confirmados</small></div>
-              <div className="moneyTile profit"><span>Lucro Gerado</span><strong>{moeda(financeiro.lucroRecebido || 0)}</strong><small>Juros ja recebidos</small></div>
-              <div className="moneyTile overdue"><span>Em Atraso</span><strong>{moeda(financeiro.valorAtrasado || 0)}</strong><small>{financeiro.parcelasAtrasadas || 0} parcela(s)</small></div>
-              <div className="moneyTile open"><span>Saldo a Receber</span><strong>{moeda(carteiraAberta || 0)}</strong><small>{financeiro.operacoesAtivas || 0} operacao(oes)</small></div>
+              <div className="moneyTile received"><span>Recebido</span><strong>{valorPrivado(financeiro.totalRecebido || 0)}</strong><small>Pagamentos confirmados</small></div>
+              <div className="moneyTile profit"><span>Lucro Gerado</span><strong>{valorPrivado(financeiro.lucroRecebido || 0)}</strong><small>Juros ja recebidos</small></div>
+              <div className="moneyTile overdue"><span>Em Atraso</span><strong>{valorPrivado(financeiro.valorAtrasado || 0)}</strong><small>{financeiro.parcelasAtrasadas || 0} parcela(s)</small></div>
+              <div className="moneyTile open"><span>Saldo a Receber</span><strong>{valorPrivado(carteiraAberta || 0)}</strong><small>{financeiro.operacoesAtivas || 0} operacao(oes)</small></div>
             </aside>
           </section>
 
@@ -106,7 +125,7 @@ function Painel({ dados, resumoVendas, recarregar }) {
                       <strong>{item.numeroOperacao || '-'}</strong>
                       <span>{item.cliente?.nome || item.cliente || 'Cliente nao informado'}</span>
                     </div>
-                    <b>{moeda(item.valorTotal || item.valor || 0)}</b>
+                    <b>{valorPrivado(item.valorTotal || item.valor || 0)}</b>
                     <StatusBadge status={item.statusOperacao || item.status} />
                   </div>
                 ))}
