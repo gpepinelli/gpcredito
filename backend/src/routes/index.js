@@ -13,6 +13,7 @@ const vendaProdutoController = require('../controllers/vendaProdutoController');
 const configuracaoController = require('../controllers/configuracaoController');
 const orcamentoController = require('../controllers/orcamentoController');
 const webhookController = require('../controllers/webhookController');
+const carteiraController = require('../controllers/carteiraController');
 const { requireAdmin, requireDeletePassword } = require('../utils/auth');
 const { validarCPF } = require('../utils/calculadora');
 const config = require('../services/configuracaoService');
@@ -70,6 +71,12 @@ router.get('/configuracoes', configuracaoController.listar);
 router.put('/configuracoes/:chave', configuracaoController.atualizar);
 router.post('/configuracoes/reset/todos', configuracaoController.resetarTodos);
 router.post('/configuracoes/reset/:chave', configuracaoController.resetar);
+router.get('/carteira', carteiraController.resumo);
+router.post('/carteira/movimentacoes',
+  [body('tipo').isIn(['ENTRADA', 'SAIDA']).withMessage('Tipo invalido'),
+   body('valor').isFloat({ min: 0.01 }).withMessage('Valor invalido'),
+   body('descricao').optional({ checkFalsy: true }).trim().isLength({ max: 240 }).withMessage('Descricao muito longa')],
+  carteiraController.movimentar);
 
 // â”€â”€ CLIENTES â”€â”€
 router.post('/clientes',

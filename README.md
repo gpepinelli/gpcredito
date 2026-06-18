@@ -209,7 +209,8 @@ O backend serve `frontend/dist` quando o build existe.
 - Cada parametro tem salvamento individual, restauracao individual e destaque quando foi alterado em relacao ao padrao.
 - Restaurar todos os padroes exige senha de exclusao.
 - Banco, senha admin, senha de exclusao, segredo do token e adaptador WhatsApp continuam no `.env`.
-- Painel financeiro possui ocultacao de valores, carteira operacional configuravel, capital aprovado para liberar e saldo restante da carteira.
+- Painel financeiro possui ocultacao de valores, carteira operacional configuravel, movimentacoes de carteira, capital aprovado para liberar e saldo restante.
+- Ao marcar uma operacao aprovada como liberada, o principal e debitado automaticamente da carteira.
 
 ### Configuracoes operacionais
 
@@ -227,7 +228,7 @@ Categorias disponiveis:
 
 | Categoria | Exemplos |
 |---|---|
-| Credito | carteira operacional, juros padrao, limites de juros/valor/parcelas, vencimento e multiplas operacoes |
+| Credito | capital inicial da carteira, juros padrao, limites de juros/valor/parcelas, vencimento e multiplas operacoes |
 | Score | score inicial, faixas de risco e pontuacoes por pagamento/atraso |
 | Cobranca | horarios dos crons, dias de penalidade e renovacao |
 | Vendas | juros normal de venda e valor minimo |
@@ -238,6 +239,12 @@ Categorias disponiveis:
 Os templates de WhatsApp aceitam placeholders como `{{nome}}`, `{{valor}}`, `{{dataVencimento}}`, `{{diasAtraso}}`, `{{chavePix}}`, `{{nomePix}}` e `{{copiaCola}}`.
 
 Observacao: alteracoes em horarios de cron entram em vigor na proxima inicializacao do backend. Parametros usados em operacoes novas, score, upload, pagamentos e mensagens passam a valer imediatamente.
+
+`CARTEIRA_OPERACIONAL` representa o capital inicial/proprio informado pelo admin. Entradas, saidas e liberacoes de credito ficam registradas em `carteira_movimentacoes`, e o saldo atual e calculado como:
+
+```text
+CARTEIRA_OPERACIONAL + entradas - saidas - creditos liberados
+```
 
 ### Organizacao do frontend
 
@@ -335,6 +342,13 @@ Authorization: Bearer <token>
 | GET | `/api/lucro` | Resumo financeiro |
 | GET | `/api/relatorio/mensal` | Relatorio mensal |
 | GET | `/api/relatorio/export` | Dados para exportacao |
+
+### Carteira
+
+| Metodo | Rota | Descricao |
+|---|---|---|
+| GET | `/api/carteira` | Resumo e ultimas movimentacoes da carteira |
+| POST | `/api/carteira/movimentacoes` | Registra entrada ou saida manual |
 
 ### Orcamentos
 

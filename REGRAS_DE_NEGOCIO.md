@@ -289,7 +289,11 @@ Valor da parcela: 100,00
   - aprovados para liberar
 - O painel financeiro deve mostrar o capital aprovado e pronto para liberar, somando o principal das operacoes com `statusOperacao = APROVADO`.
 - A carteira operacional e manual, vem de `CARTEIRA_OPERACIONAL` e representa o capital proprio reservado pelo admin para operar.
-- O saldo da carteira e calculado como `CARTEIRA_OPERACIONAL - capital aprovado para liberar`.
+- Entradas e saidas manuais de carteira ficam registradas em `carteira_movimentacoes`.
+- Ao liberar uma operacao aprovada, o valor principal do emprestimo e debitado automaticamente da carteira uma unica vez.
+- O saldo atual da carteira e calculado como `CARTEIRA_OPERACIONAL + entradas - saidas - creditos liberados`.
+- O saldo apos liberacoes considera tambem operacoes aprovadas ainda nao liberadas.
+- Se a carteira nao tiver saldo suficiente, a liberacao deve ser bloqueada com mensagem clara.
 - O painel pode ocultar/mostrar valores financeiros sensiveis no navegador.
 - Linha atrasada e destacada.
 - Pix pode ser copiado com um clique.
@@ -319,6 +323,7 @@ Valor da parcela: 100,00
 - Backup manual/agendavel do PostgreSQL usa `npm run backup:db`, gerando dumps em `backups/`.
 - A tabela `arquivos_pdf` registra cada PDF gerado com tipo, origem, cliente, caminho e data.
 - Pagamentos com recibo tambem devem preencher `pagamentos.caminho_pdf`.
+- A tabela `carteira_movimentacoes` registra entradas, saidas manuais e saidas automaticas por liberacao de credito.
 - O sistema nunca deve sobrescrever PDF existente; quando necessario, adiciona sufixo numerico.
 
 ## 12. Configuracoes operacionais

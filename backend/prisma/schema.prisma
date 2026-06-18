@@ -102,6 +102,7 @@ model Emprestimo {
   pagamentos Pagamento[]
   parcelas   Parcela[]
   contratos  ContratoOperacao[]
+  carteiraMovimentacoes CarteiraMovimentacao[]
 
   @@map("emprestimos")
 }
@@ -253,6 +254,21 @@ model Configuracao {
   @@map("configuracoes")
 }
 
+model CarteiraMovimentacao {
+  id           String                 @id @default(uuid())
+  tipo         TipoMovimentacaoCarteira
+  valor        Float
+  descricao    String?
+  emprestimoId String?                @map("emprestimo_id")
+  criadoEm     DateTime               @default(now()) @map("criado_em")
+
+  emprestimo Emprestimo? @relation(fields: [emprestimoId], references: [id], onDelete: SetNull)
+
+  @@index([tipo])
+  @@index([emprestimoId])
+  @@map("carteira_movimentacoes")
+}
+
 enum StatusEmprestimo {
   pendente
   pago
@@ -346,4 +362,9 @@ enum TipoArquivoPdf {
   ORCAMENTO
   COBRANCA
   RECIBO
+}
+
+enum TipoMovimentacaoCarteira {
+  ENTRADA
+  SAIDA
 }

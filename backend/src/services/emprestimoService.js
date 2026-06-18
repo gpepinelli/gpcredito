@@ -10,6 +10,7 @@ const contratoService = require('./contratoService');
 const adminLogService = require('./adminLogService');
 const config = require('./configuracaoService');
 const reciboService = require('./reciboService');
+const carteiraService = require('./carteiraService');
 
 const STATUS_OPERACAO_ABERTA = ['AGUARDANDO_ACEITE', 'APROVADO', 'LIBERADO', 'EM_DIA', 'ATRASADO'];
 const STATUS_OPERACAO_FINALIZADA_SEM_RENOVACAO = ['CANCELADO', 'RECUSADO'];
@@ -474,7 +475,8 @@ class EmprestimoService {
       if (typeof resumo[chave] === 'number') resumo[chave] = Number(resumo[chave].toFixed(2));
     });
 
-    return { resumo, ultimasOperacoes };
+    const carteira = await carteiraService.resumo();
+    return { resumo: { ...resumo, carteira }, ultimasOperacoes };
   }
 
   async aceitarManual(emprestimoId) {
@@ -506,10 +508,15 @@ class EmprestimoService {
     if (!['APROVADO', 'LIBERADO'].includes(emprestimo.statusOperacao)) {
       throw new Error('Operacao precisa estar aprovada para liberar o dinheiro');
     }
-    const atualizado = await prisma.emprestimo.update({
-      where: { id: emprestimoId },
-      data: { statusOperacao: 'LIBERADO' },
-      include: { cliente: true, pagamentos: true, contratos: true, parcelas: { orderBy: { numero: 'asc' } } },
+    const atualizado = await prisma.$transaction(async (tx) => {
+      if (emprestimo.statusOperacao === 'APROVADO') {
+        await carteiraService.debitarLiberacao(tx, emprestimo);
+      }
+      return tx.emprestimo.update({
+        where: { id: emprestimoId },
+        data: { statusOperacao: 'LIBERADO' },
+        include: { cliente: true, pagamentos: true, contratos: true, parcelas: { orderBy: { numero: 'asc' } } },
+      });
     });
     await adminLogService.registrar('CREDITO_LIBERADO', 'Dinheiro liberado ao cliente', { emprestimoId, numeroOperacao: atualizado.numeroOperacao });
     return atualizado;

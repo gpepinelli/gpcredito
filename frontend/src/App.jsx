@@ -28,9 +28,10 @@ import { calcularParcelas, operacaoPendente } from './lib/finance.js';
 import { dataCurta, moeda } from './lib/format.js';
 import { Configuracoes, RelatorioVendas, Relatorios } from './pages/reports.jsx';
 
-function Painel({ dados, resumoVendas, recarregar, configuracoes = CONFIG_PADRAO }) {
+function Painel({ dados, resumoVendas, recarregar, configuracoes = CONFIG_PADRAO, notificar }) {
   const [visao, setVisao] = useState('financeiro');
   const [mostrarValores, setMostrarValores] = useState(() => localStorage.getItem('gp_mostrar_valores') !== 'false');
+  const [movCarteira, setMovCarteira] = useState({ tipo: 'ENTRADA', valor: '', descricao: '' });
   const faturamentoVendas = Object.values(resumoVendas?.porTipo || {}).reduce((acc, item) => acc + item.faturamento, 0);
   const lucroVendas = Object.values(resumoVendas?.porTipo || {}).reduce((acc, item) => acc + item.lucro, 0);
   const alertas = dados.alertas || {};
@@ -41,9 +42,11 @@ function Painel({ dados, resumoVendas, recarregar, configuracoes = CONFIG_PADRAO
   const aguardandoAceite = dados.emprestimos.filter((item) => item.statusOperacao === 'AGUARDANDO_ACEITE');
   const aguardandoLiberacao = dados.emprestimos.filter((item) => item.statusOperacao === 'APROVADO');
   const carteiraAberta = financeiro.valorEmAberto ?? operacoesPendentes.reduce((acc, item) => acc + Number(item.saldoDevedor || item.valorTotal || 0), 0);
-  const carteiraOperacional = Number(configuracoes.carteiraOperacional || 0);
+  const carteira = financeiro.carteira || {};
+  const carteiraOperacional = Number(carteira.capitalInicial ?? configuracoes.carteiraOperacional ?? 0);
   const capitalALiberar = Number(financeiro.valorAguardandoLiberacao || 0);
-  const saldoCarteira = carteiraOperacional - capitalALiberar;
+  const saldoCarteira = Number(carteira.saldo ?? (carteiraOperacional - capitalALiberar));
+  const saldoAposLiberacoes = saldoCarteira - capitalALiberar;
   const vendasPorTipo = TIPOS.map((tipo) => ({ tipo, dados: resumoVendas?.porTipo?.[tipo.id] || {} }));
   const ultimasOperacoes = (ultimasFinanceiro.length ? ultimasFinanceiro : [...dados.emprestimos]
     .sort((a, b) => new Date(b.criadoEm || b.dataCriacao || 0) - new Date(a.criadoEm || a.dataCriacao || 0))
@@ -53,6 +56,18 @@ function Painel({ dados, resumoVendas, recarregar, configuracoes = CONFIG_PADRAO
   useEffect(() => {
     localStorage.setItem('gp_mostrar_valores', mostrarValores ? 'true' : 'false');
   }, [mostrarValores]);
+
+  async function registrarMovimentacaoCarteira(event) {
+    event.preventDefault();
+    try {
+      await api('/carteira/movimentacoes', { method: 'POST', body: JSON.stringify(movCarteira) });
+      setMovCarteira({ tipo: 'ENTRADA', valor: '', descricao: '' });
+      notificar?.('sucesso', 'Carteira atualizada.');
+      await recarregar?.();
+    } catch (error) {
+      notificar?.('erro', error.message);
+    }
+  }
 
   return (
     <>
@@ -106,11 +121,33 @@ function Painel({ dados, resumoVendas, recarregar, configuracoes = CONFIG_PADRAO
               <div className="moneyTile open"><span>Saldo a Receber</span><strong>{valorPrivado(carteiraAberta || 0)}</strong><small>{financeiro.operacoesAtivas || 0} operacao(oes)</small></div>
               <div className="moneyTile wallet"><span>Carteira Operacional</span><strong>{valorPrivado(carteiraOperacional)}</strong><small>Capital proprio configurado</small></div>
               <div className="moneyTile release"><span>Pronto para Liberar</span><strong>{valorPrivado(capitalALiberar)}</strong><small>{financeiro.aguardandoLiberacao || 0} operacao(oes) aprovada(s)</small></div>
-              <div className={saldoCarteira < 0 ? 'moneyTile wallet negative' : 'moneyTile wallet balance'}><span>Saldo da Carteira</span><strong>{valorPrivado(saldoCarteira)}</strong><small>Apos liberacoes aprovadas</small></div>
+              <div className={saldoCarteira < 0 ? 'moneyTile wallet negative' : 'moneyTile wallet balance'}><span>Saldo Atual</span><strong>{valorPrivado(saldoCarteira)}</strong><small>Entradas menos saidas realizadas</small></div>
+              <div className={saldoAposLiberacoes < 0 ? 'moneyTile wallet negative' : 'moneyTile wallet balance'}><span>Saldo Apos Liberacoes</span><strong>{valorPrivado(saldoAposLiberacoes)}</strong><small>Considerando aprovadas pendentes</small></div>
             </aside>
           </section>
 
           <section className="operationWorkbench">
+            <article className="panel walletPanel">
+              <div className="panelTitle">Movimentar Carteira</div>
+              <form className="walletForm" onSubmit={registrarMovimentacaoCarteira}>
+                <select value={movCarteira.tipo} onChange={(event) => setMovCarteira((atual) => ({ ...atual, tipo: event.target.value }))}>
+                  <option value="ENTRADA">Entrada</option>
+                  <option value="SAIDA">Saida</option>
+                </select>
+                <input type="number" min="0.01" step="0.01" placeholder="Valor" value={movCarteira.valor} onChange={(event) => setMovCarteira((atual) => ({ ...atual, valor: event.target.value }))} required />
+                <input type="text" placeholder="Descricao" value={movCarteira.descricao} onChange={(event) => setMovCarteira((atual) => ({ ...atual, descricao: event.target.value }))} />
+                <button className="primaryButton" type="submit">Registrar</button>
+              </form>
+              <div className="walletHistory">
+                {(carteira.ultimas || []).slice(0, 5).map((item) => (
+                  <div key={item.id}>
+                    <span className={item.tipo === 'ENTRADA' ? 'entrada' : 'saida'}>{item.tipo === 'ENTRADA' ? '+' : '-'} {valorPrivado(item.valor)}</span>
+                    <small>{item.descricao || item.emprestimo?.numeroOperacao || 'Movimentacao manual'}</small>
+                  </div>
+                ))}
+                {!(carteira.ultimas || []).length && <p className="muted">Nenhuma movimentacao registrada.</p>}
+              </div>
+            </article>
             <article className="panel">
               <div className="panelTitle">Situacao Operacional</div>
               <div className="queueGrid">
@@ -1222,7 +1259,7 @@ export default function App() {
       globalSearch={<GlobalSearch query={buscaGlobal} setQuery={setBuscaGlobal} resultados={resultadosGlobais} onOpenCliente={(id) => { setClienteDetalhe(id); setBuscaGlobal(''); }} onOpenOperacao={abrirResultadoOperacao} />}
     >
       {erro && <div className="errorBanner">{erro}</div>}
-      {active === 'painel' && <Painel dados={dados} resumoVendas={resumoVendas} recarregar={carregar} configuracoes={configuracoes} />}
+      {active === 'painel' && <Painel dados={dados} resumoVendas={resumoVendas} recarregar={carregar} configuracoes={configuracoes} notificar={notificar} />}
       {active === 'tarefas' && <TarefasHoje emprestimos={dados.emprestimos} abrirPagar={setPagamento} aceitarManual={aceitarManual} liberarDinheiro={liberarDinheiro} reenviarPix={reenviarPix} />}
       {active === 'orcamentos' && <Orcamentos clientes={dados.clientes} configuracoes={configuracoes} notificar={notificar} converterOrcamento={converterOrcamento} refreshKey={orcamentosRefreshKey} excluirOrcamento={(orcamento) => setExclusao({ tipo: 'orcamento', id: orcamento.id, nome: `orcamento de ${orcamento.cliente?.nome || 'simulacao'}`, resumo: `Valor ${moeda(orcamento.valor)}, ${orcamento.parcelas} parcela(s), status ${orcamento.status}. O PDF salvo tambem sera removido.` })} />}
       {active === 'clientes' && <Clientes clientes={dados.clientes} salvarCliente={salvarCliente} verCliente={setClienteDetalhe} onUnauthorized={encerrarSessao} filtros={filtrosClientes} setFiltros={setFiltrosClientes} paginacao={paginacaoClientes} excluirCliente={(cliente) => setExclusao({ tipo: 'cliente', id: cliente.id, nome: cliente.nome, resumo: `Este cliente tem ${cliente.emprestimos?.length || 0} operacao(oes) aberta(s) vinculada(s). Documentos, contratos, parcelas, pagamentos e vendas vinculadas tambem serao removidos.` })} />}

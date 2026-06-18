@@ -133,6 +133,14 @@ nav { padding: 10px 0; display: grid; gap: 6px; overflow-y: auto; }
 .moneyTile.release { border-color: #c4b5fd; background: #f5f3ff; }
 .moneyTile.balance { border-color: #bbf7d0; background: #f0fdf4; }
 .moneyTile.negative { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+.walletPanel { align-content: start; }
+.walletForm { display: grid; grid-template-columns: 120px 140px minmax(180px, 1fr) auto; gap: 10px; align-items: center; }
+.walletHistory { display: grid; gap: 8px; margin-top: 12px; }
+.walletHistory div { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--border); padding-top: 8px; }
+.walletHistory span { font-weight: 900; }
+.walletHistory .entrada { color: #047857; }
+.walletHistory .saida { color: #b91c1c; }
+.walletHistory small { color: var(--muted); text-align: right; }
 .operationWorkbench { display: grid; grid-template-columns: minmax(290px, .85fr) minmax(0, 1.45fr); gap: 16px; }
 .queueGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .queueGrid div { min-height: 86px; border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: #f8fafc; display: grid; align-content: space-between; gap: 8px; }
@@ -366,6 +374,7 @@ tbody tr:hover td {
   .ledgerPanel { min-height: 220px; padding: 18px; }
   .ledgerStats, .queueGrid, .moneySnapshot { grid-template-columns: 1fr; }
   .moneyTile.release { grid-column: auto; }
+  .walletForm { grid-template-columns: 1fr; }
   .compactRow { grid-template-columns: 1fr; gap: 6px; align-items: start; }
   .salesLane { grid-template-columns: 28px 1fr; }
   .salesLane strong, .salesLane small { grid-column: 2; }
