@@ -326,6 +326,27 @@ class EmprestimoService {
     return pagamento;
   }
 
+  async reenviarRecibo(pagamentoId) {
+    const pagamento = await prisma.pagamento.findUnique({
+      where: { id: pagamentoId },
+      include: {
+        parcela: true,
+        emprestimo: { include: { cliente: true, parcelas: { orderBy: { numero: 'asc' } } } },
+      },
+    });
+    if (!pagamento) throw new Error('Pagamento nao encontrado');
+    if (pagamento.status !== 'confirmado') throw new Error('Somente pagamentos confirmados possuem recibo');
+
+    let caminhoAbsoluto = pagamento.caminhoPdf ? require('./storageService').absoluto(pagamento.caminhoPdf) : null;
+    if (!caminhoAbsoluto) {
+      const recibo = await reciboService.gerar({ emprestimo: pagamento.emprestimo, pagamento, parcela: pagamento.parcela });
+      caminhoAbsoluto = recibo.caminhoAbsoluto;
+    }
+    const enviado = await whatsapp.enviarRecibo(pagamento.emprestimo.cliente, pagamento, caminhoAbsoluto);
+    if (!enviado) throw new Error('Recibo nao enviado. Verifique a conexao do WhatsApp.');
+    return { enviado: true };
+  }
+
   async listar(filtros = {}) {
     const pagina = Math.max(1, Number(filtros.page || filtros.pagina || 1));
     const limite = Math.min(100, Math.max(1, Number(filtros.limit || filtros.limite || 25)));
@@ -542,6 +563,7 @@ class EmprestimoService {
     const enviado = emprestimo.pixCopiaCola
       ? await whatsapp.enviarPixCopiaCola(emprestimo.cliente, emprestimo)
       : await whatsapp.enviarPixManual(emprestimo.cliente, emprestimo);
+    if (!enviado) throw new Error('Pix nao enviado. Verifique a conexao do WhatsApp e se a chave Pix esta configurada.');
     return { enviado: Boolean(enviado) };
   }
 
@@ -641,6 +663,7 @@ class EmprestimoService {
     if (!emprestimo) throw new Error('Emprestimo nao encontrado');
 
     await prisma.$transaction([
+      prisma.promessaPagamento.deleteMany({ where: { emprestimoId } }),
       prisma.pagamento.deleteMany({ where: { emprestimoId } }),
       prisma.contratoOperacao.deleteMany({ where: { emprestimoId } }),
       prisma.parcela.deleteMany({ where: { emprestimoId } }),

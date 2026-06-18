@@ -136,6 +136,8 @@ Parcelamento final: 3x de 533,33, ajustando centavos na ultima parcela.
 - Se uma operacao atrasada receber pagamento parcial, continua `ATRASADO` ate quitar ou ser regularizada por regra futura.
 - Todo pagamento confirmado gera recibo PDF em `storage/recibos/{nome-cliente}/recibo-{parcela-id-ou-pagamento-id}.pdf`.
 - O recibo fica vinculado em `pagamentos.caminho_pdf`, registrado em `arquivos_pdf` com tipo `RECIBO` e pode ser enviado automaticamente pelo WhatsApp.
+- Recibo confirmado pode ser reenviado pelo painel.
+- Promessa de pagamento registra valor, data combinada, observacao e status (`PENDENTE`, `CUMPRIDA`, `NAO_CUMPRIDA`, `CANCELADA`).
 - Score e alterado na quitacao total, conforme atraso no vencimento final.
 - Renegociacao de prazo altera o vencimento, registra log administrativo e retorna a operacao para `EM_DIA`.
 - Cobranca WhatsApp em lote pode ser disparada manualmente para operacoes selecionadas.
@@ -150,6 +152,7 @@ Parcelamento final: 3x de 533,33, ajustando centavos na ultima parcela.
 - Atrasado: envia cobranca de atraso.
 - A partir de `DIAS_INADIMPLENCIA_PENALIDADE` dias de atraso, aplica penalidade de inadimplencia uma vez.
 - O painel permite reenviar Pix manualmente.
+- Reenvio de Pix deve retornar erro claro se a chave Pix nao estiver configurada ou se o WhatsApp falhar.
 - O painel exibe status do adaptador WhatsApp e mensagens na fila.
 - Se `PIX_CHAVE` estiver configurada, o sistema envia Pix manual.
 - Mercado Pago e opcional; webhook confirma pagamento aprovado quando configurado.

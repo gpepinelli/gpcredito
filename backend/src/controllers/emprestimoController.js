@@ -177,6 +177,15 @@ class EmprestimoController {
       return res.status(500).json({ sucesso: false, mensagem: error.message });
     }
   }
+
+  async reenviarRecibo(req, res) {
+    try {
+      const resultado = await emprestimoService.reenviarRecibo(req.params.id);
+      return res.json({ sucesso: true, ...resultado });
+    } catch (error) {
+      return res.status(400).json({ sucesso: false, mensagem: error.message });
+    }
+  }
 }
 
 module.exports = new EmprestimoController();

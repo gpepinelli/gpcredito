@@ -14,6 +14,7 @@ const configuracaoController = require('../controllers/configuracaoController');
 const orcamentoController = require('../controllers/orcamentoController');
 const webhookController = require('../controllers/webhookController');
 const carteiraController = require('../controllers/carteiraController');
+const promessaPagamentoController = require('../controllers/promessaPagamentoController');
 const { requireAdmin, requireDeletePassword } = require('../utils/auth');
 const { validarCPF } = require('../utils/calculadora');
 const config = require('../services/configuracaoService');
@@ -73,6 +74,7 @@ router.post('/configuracoes/reset/todos', configuracaoController.resetarTodos);
 router.post('/configuracoes/reset/:chave', configuracaoController.resetar);
 router.get('/carteira', carteiraController.resumo);
 router.get('/carteira/export', carteiraController.exportar);
+router.get('/fluxo-caixa', carteiraController.fluxoCaixa);
 router.post('/carteira/movimentacoes',
   [body('tipo').isIn(['ENTRADA', 'SAIDA']).withMessage('Tipo invalido'),
    body('valor').isFloat({ min: 0.01 }).withMessage('Valor invalido'),
@@ -115,10 +117,17 @@ router.post('/emprestimos/:id/pagar',
   [body('valorPago').isFloat({ min: 0.01 }).withMessage('Valor pago invÃ¡lido')],
   emprestimoController.confirmarPagamentoManual);
 router.post('/emprestimos/:id/parcelas/:parcelaId/pagar', emprestimoController.confirmarPagamentoParcela);
+router.post('/pagamentos/:id/reenviar-recibo', emprestimoController.reenviarRecibo);
 router.post('/emprestimos/:id/aceitar', emprestimoController.aceitarManual);
 router.post('/emprestimos/:id/liberar', emprestimoController.liberarDinheiro);
 router.post('/emprestimos/:id/reenviar-contrato', emprestimoController.reenviarContrato);
 router.post('/emprestimos/:id/reenviar-pix', emprestimoController.reenviarPix);
+router.post('/emprestimos/:id/promessas',
+  [body('valor').isFloat({ min: 0.01 }).withMessage('Valor prometido invalido'),
+   body('dataPrometida').isISO8601().withMessage('Data prometida invalida'),
+   body('observacao').optional({ checkFalsy: true }).trim().isLength({ max: 500 }).withMessage('Observacao muito longa')],
+  promessaPagamentoController.criar);
+router.patch('/promessas-pagamento/:id', promessaPagamentoController.atualizar);
 router.post('/emprestimos/cobranca-lote', emprestimoController.cobrancaLote);
 router.patch('/emprestimos/:id/renegociar', emprestimoController.renegociarPrazo);
 router.patch('/emprestimos/:id/observacao', emprestimoController.atualizarObservacao);

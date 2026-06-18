@@ -14,14 +14,15 @@ export function Relatorios() {
   async function carregarRelatorios() {
     setErro('');
     try {
-      const [lucro, mensal, aging, logs, whats] = await Promise.all([
+      const [lucro, mensal, aging, logs, whats, fluxo] = await Promise.all([
         api('/lucro'),
         api('/relatorio/mensal'),
         api('/admin/inadimplencia/aging'),
         api('/admin/logs?limit=10'),
         api('/admin/whatsapp/status'),
+        api('/fluxo-caixa'),
       ]);
-      setDados({ lucro, mensal: mensal.metricas || [], aging: aging.aging, logs: logs.logs || [], whats: whats.status });
+      setDados({ lucro, mensal: mensal.metricas || [], aging: aging.aging, logs: logs.logs || [], whats: whats.status, fluxo: fluxo.fluxo });
     } catch (error) {
       setErro(error.message);
     }
@@ -57,6 +58,15 @@ export function Relatorios() {
             <Stat icon={FileText} label="Lucro em juros" value={moeda(dados.lucro.lucroJuros)} tone="amber" />
             <Stat icon={Phone} label="WhatsApp" value={dados.whats?.connected ? 'Online' : 'Offline'} tone={dados.whats?.connected ? 'green' : 'red'} />
           </div>
+          <section className="panel tableWithTop">
+            <div className="panelTitle">Fluxo de caixa</div>
+            <div className="statsGrid compact">
+              <Stat icon={CircleDollarSign} label="Saldo da carteira" value={moeda(dados.fluxo?.resumo?.saldoAtualCarteira || 0)} tone="green" />
+              <Stat icon={BadgeDollarSign} label="Entradas da carteira" value={moeda(dados.fluxo?.resumo?.entradasCarteira || 0)} />
+              <Stat icon={FileText} label="Saidas/liberacoes" value={moeda(dados.fluxo?.resumo?.saidasCarteira || 0)} tone="red" />
+              <Stat icon={ClipboardList} label="Pagamentos recebidos" value={moeda(dados.fluxo?.resumo?.pagamentosRecebidos || 0)} tone="amber" />
+            </div>
+          </section>
           <section className="contentGrid">
             <article className="panel">
               <div className="panelTitle">Aging de inadimplencia</div>

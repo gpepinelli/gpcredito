@@ -85,6 +85,48 @@ class CarteiraService {
     return linhas.map(linha => linha.map(valor => `"${String(valor).replace(/"/g, '""')}"`).join(';')).join('\n');
   }
 
+  async fluxoCaixa({ inicio, fim } = {}) {
+    await this.sincronizarLiberacoesAntigas();
+    const whereData = {};
+    if (inicio) whereData.gte = new Date(`${inicio}T00:00:00`);
+    if (fim) whereData.lte = new Date(`${fim}T23:59:59`);
+
+    const [movimentacoes, pagamentos, carteira] = await Promise.all([
+      prisma.carteiraMovimentacao.findMany({
+        where: Object.keys(whereData).length ? { criadoEm: whereData } : {},
+        include: { emprestimo: { select: { numeroOperacao: true, cliente: { select: { nome: true } } } } },
+        orderBy: { criadoEm: 'desc' },
+      }),
+      prisma.pagamento.findMany({
+        where: {
+          status: 'confirmado',
+          ...(Object.keys(whereData).length ? { dataPagamento: whereData } : {}),
+        },
+        include: { parcela: true, emprestimo: { include: { cliente: true } } },
+        orderBy: { dataPagamento: 'desc' },
+      }),
+      this.resumo(),
+    ]);
+
+    const entradasCarteira = movimentacoes.filter(m => m.tipo === 'ENTRADA').reduce((acc, m) => acc + Number(m.valor || 0), 0);
+    const saidasCarteira = movimentacoes.filter(m => m.tipo === 'SAIDA').reduce((acc, m) => acc + Number(m.valor || 0), 0);
+    const recebido = pagamentos.reduce((acc, p) => acc + Number(p.valorPago || 0), 0);
+    const jurosRecebidos = pagamentos.reduce((acc, p) => acc + Number(p.parcela?.valorJuros || 0), 0);
+
+    return {
+      resumo: {
+        saldoAtualCarteira: carteira.saldo,
+        entradasCarteira,
+        saidasCarteira,
+        pagamentosRecebidos: recebido,
+        jurosRecebidos,
+        resultadoPeriodo: entradasCarteira + recebido - saidasCarteira,
+      },
+      movimentacoes,
+      pagamentos,
+    };
+  }
+
   async movimentar({ tipo, valor, descricao = null, emprestimoId = null }) {
     const tipoNormalizado = String(tipo || '').toUpperCase();
     if (!['ENTRADA', 'SAIDA'].includes(tipoNormalizado)) throw new Error('Tipo de movimentacao invalido');

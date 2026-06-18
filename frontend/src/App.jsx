@@ -1203,8 +1203,12 @@ export default function App() {
   }
 
   async function reenviarPix(emprestimo) {
-    await api(`/emprestimos/${emprestimo.id}/reenviar-pix`, { method: 'POST', body: JSON.stringify({}) });
-    notificar('sucesso', 'Pix reenviado.');
+    try {
+      await api(`/emprestimos/${emprestimo.id}/reenviar-pix`, { method: 'POST', body: JSON.stringify({}) });
+      notificar('sucesso', 'Pix reenviado.');
+    } catch (error) {
+      notificar('erro', error.message);
+    }
   }
 
   async function salvarObservacao(emprestimo, observacao) {

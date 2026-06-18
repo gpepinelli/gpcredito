@@ -30,6 +30,15 @@ class CarteiraController {
       return res.status(500).json({ sucesso: false, mensagem: error.message });
     }
   }
+
+  async fluxoCaixa(req, res) {
+    try {
+      const fluxo = await carteiraService.fluxoCaixa(req.query);
+      return res.json({ sucesso: true, fluxo });
+    } catch (error) {
+      return res.status(500).json({ sucesso: false, mensagem: error.message });
+    }
+  }
 }
 
 module.exports = new CarteiraController();

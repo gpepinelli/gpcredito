@@ -275,6 +275,8 @@ export function ClienteDetalheModal({ clienteId, onClose, onDocumentoAlterado, o
   const [erro, setErro] = useState('');
   const [aba, setAba] = useState('dados');
   const [uploadErro, setUploadErro] = useState('');
+  const [promessaForm, setPromessaForm] = useState({ emprestimoId: '', valor: '', dataPrometida: '', observacao: '' });
+  const [acaoMsg, setAcaoMsg] = useState('');
 
   useEffect(() => {
     if (!clienteId) return;
@@ -315,16 +317,53 @@ export function ClienteDetalheModal({ clienteId, onClose, onDocumentoAlterado, o
     }
   }
 
+  async function criarPromessa(event) {
+    event.preventDefault();
+    setAcaoMsg('');
+    try {
+      await api(`/emprestimos/${promessaForm.emprestimoId}/promessas`, { method: 'POST', body: JSON.stringify(promessaForm) });
+      const atualizado = await api(`/clientes/${clienteId}/historico`);
+      setDados(atualizado);
+      setPromessaForm({ emprestimoId: '', valor: '', dataPrometida: '', observacao: '' });
+      setAcaoMsg('Promessa registrada.');
+    } catch (error) {
+      setAcaoMsg(error.message);
+    }
+  }
+
+  async function atualizarPromessa(id, status) {
+    setAcaoMsg('');
+    try {
+      await api(`/promessas-pagamento/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+      const atualizado = await api(`/clientes/${clienteId}/historico`);
+      setDados(atualizado);
+    } catch (error) {
+      setAcaoMsg(error.message);
+    }
+  }
+
+  async function reenviarRecibo(pagamentoId) {
+    setAcaoMsg('');
+    try {
+      await api(`/pagamentos/${pagamentoId}/reenviar-recibo`, { method: 'POST', body: JSON.stringify({}) });
+      setAcaoMsg('Recibo reenviado.');
+    } catch (error) {
+      setAcaoMsg(error.message);
+    }
+  }
+
   const cliente = dados?.cliente;
-  const abas = ['dados', 'score', 'operacoes', 'parcelas', 'contratos', 'documentos'];
+  const abas = ['dados', 'score', 'operacoes', 'parcelas', 'acordos', 'contratos', 'documentos'];
   const labelsAbas = {
     dados: 'Dados',
     score: 'Score',
     operacoes: 'Operacoes',
     parcelas: 'Parcelas',
+    acordos: 'Acordos',
     contratos: 'Contratos',
     documentos: 'Documentos',
   };
+  const pagamentosPorParcela = new Map((dados?.pagamentos || []).filter(p => p.parcelaId).map(p => [p.parcelaId, p]));
 
   return (
     <Modal aberto={Boolean(clienteId)} titulo={cliente?.nome || 'Cliente'} subtitulo={cliente ? `${cliente.telefone} - Score ${cliente.score}` : 'Carregando dados do cliente.'} icon={Users} onClose={onClose} size="modalWide">
@@ -336,7 +375,11 @@ export function ClienteDetalheModal({ clienteId, onClose, onDocumentoAlterado, o
             <div><span>Operacoes abertas</span><b>{dados.resumo?.operacoesEmAberto || 0}</b></div>
             <div><span>Quitadas</span><b>{dados.resumo?.operacoesQuitadas || 0}</b></div>
             <div><span>Parcelas abertas</span><b>{dados.resumo?.parcelasEmAberto || 0}</b></div>
+            <div><span>Saldo devedor</span><b>{moeda(dados.resumo?.saldoDevedor || 0)}</b></div>
+            <div><span>Total pago</span><b>{moeda(dados.resumo?.totalPago || 0)}</b></div>
+            <div><span>Lucro gerado</span><b>{moeda(dados.resumo?.lucroGerado || 0)}</b></div>
           </div>
+          {acaoMsg && <div className="infoBanner">{acaoMsg}</div>}
           <div className="modalActions">
             <button className="primaryButton" onClick={() => onNovaOperacao?.(cliente)}><Plus size={16} /> Nova operacao</button>
             <button className="ghostButton" onClick={() => window.print()}><FileText size={16} /> Imprimir</button>
@@ -369,7 +412,25 @@ export function ClienteDetalheModal({ clienteId, onClose, onDocumentoAlterado, o
             </div>
           )}
           {aba === 'operacoes' && <SimpleTable cols={['Operacao', 'Valor', 'Juros', 'Parcelas', 'Status']} rows={(dados.operacoes?.todas || []).map((op) => [op.numeroOperacao, moeda(op.valor), `${op.juros}%`, `${op.totalParcelas}x`, <StatusBadge status={op.statusOperacao} />])} />}
-          {aba === 'parcelas' && <SimpleTable cols={['Operacao', '#', 'Valor', 'Status', 'Vencimento']} rows={(dados.parcelas || []).map((p) => [p.numeroOperacao, p.numero, moeda(p.valor), <StatusBadge status={p.status} />, dataCurta(p.dataVencimento)])} />}
+          {aba === 'parcelas' && <SimpleTable cols={['Operacao', '#', 'Valor', 'Status', 'Vencimento', 'Acoes']} rows={(dados.parcelas || []).map((p) => {
+            const pagamento = pagamentosPorParcela.get(p.id);
+            return [p.numeroOperacao, p.numero, moeda(p.valor), <StatusBadge status={p.status} />, dataCurta(p.dataVencimento), pagamento ? <button className="smallButton" onClick={() => reenviarRecibo(pagamento.id)}>Reenviar recibo</button> : '-'];
+          })} />}
+          {aba === 'acordos' && (
+            <div className="agreementsPanel">
+              <form className="inlineForm" onSubmit={criarPromessa}>
+                <select value={promessaForm.emprestimoId} onChange={(event) => setPromessaForm({ ...promessaForm, emprestimoId: event.target.value })} required>
+                  <option value="">Operacao</option>
+                  {(dados.operacoes?.emAberto || []).map((op) => <option key={op.id} value={op.id}>{op.numeroOperacao} - {moeda(op.valorTotal)}</option>)}
+                </select>
+                <input type="number" min="0.01" step="0.01" placeholder="Valor prometido" value={promessaForm.valor} onChange={(event) => setPromessaForm({ ...promessaForm, valor: event.target.value })} required />
+                <input type="date" value={promessaForm.dataPrometida} onChange={(event) => setPromessaForm({ ...promessaForm, dataPrometida: event.target.value })} required />
+                <input type="text" placeholder="Observacao" value={promessaForm.observacao} onChange={(event) => setPromessaForm({ ...promessaForm, observacao: event.target.value })} />
+                <button className="primaryButton" type="submit">Registrar</button>
+              </form>
+              <SimpleTable cols={['Operacao', 'Valor', 'Data prometida', 'Status', 'Observacao', 'Acoes']} rows={(dados.promessas || []).map((p) => [p.numeroOperacao, moeda(p.valor), dataCurta(p.dataPrometida), <StatusBadge status={p.status} />, p.observacao || '-', <div className="rowActions"><button className="smallButton" onClick={() => atualizarPromessa(p.id, 'CUMPRIDA')}>Cumpriu</button><button className="smallButton" onClick={() => atualizarPromessa(p.id, 'NAO_CUMPRIDA')}>Nao cumpriu</button></div>])} />
+            </div>
+          )}
           {aba === 'contratos' && <SimpleTable cols={['Contrato', 'Operacao', 'Status', 'Criado']} rows={(dados.contratos || []).map((c) => [c.numeroContrato, c.numeroOperacao, <StatusBadge status={c.statusContrato} />, dataCurta(c.criadoEm)])} />}
           {aba === 'documentos' && (
             <>

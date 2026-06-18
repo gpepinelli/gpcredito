@@ -247,6 +247,7 @@ tr:last-child td { border-bottom: 0; }
 .productCard dd { margin: 0; text-align: right; }
 .sellForm { display: grid; gap: 8px; }
 .errorBanner { margin-bottom: 14px; background: #fee2e2; color: var(--red); border: 1px solid #fecaca; border-radius: 8px; padding: 11px 13px; font-weight: 700; }
+.infoBanner { margin-bottom: 14px; background: #ecfeff; color: #0e7490; border: 1px solid #a5f3fc; border-radius: 8px; padding: 11px 13px; font-weight: 700; }
 .muted { color: var(--muted); }
 .hint { color: var(--muted); font-size: 12px; }
 .loadingLine { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 18px; color: var(--muted); }

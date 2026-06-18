@@ -153,7 +153,7 @@ O backend serve `frontend/dist` quando o build existe.
 - Cadastro com nome, CPF, telefone e endereco.
 - CPF validado no backend.
 - Documentos opcionais: RG frente, RG verso e comprovante de residencia.
-- Detalhe do cliente com dados, operacoes, parcelas, contratos e documentos.
+- Detalhe do cliente com dados, resumo financeiro, operacoes, parcelas, acordos, contratos e documentos.
 - Criacao de nova operacao direto do detalhe do cliente.
 - Impressao limpa do resumo do cliente.
 
@@ -166,6 +166,8 @@ O backend serve `frontend/dist` quando o build existe.
 - Liberacao do dinheiro apos aprovacao.
 - Pagamento manual e pagamento de parcela.
 - Confirmacao de pagamento gera recibo PDF em `storage/recibos/`, vincula em `pagamentos.caminho_pdf` e tenta enviar pelo WhatsApp.
+- Recibos podem ser reenviados pelo detalhe do cliente.
+- Promessas de pagamento podem ser registradas por operacao.
 - Botao rapido para pagar proxima parcela.
 - Reenvio de contrato e Pix.
 - Observacao por operacao.
@@ -337,6 +339,9 @@ Authorization: Bearer <token>
 | POST | `/api/emprestimos/:id/liberar` | Marca dinheiro como liberado |
 | POST | `/api/emprestimos/:id/reenviar-contrato` | Reenvia contrato |
 | POST | `/api/emprestimos/:id/reenviar-pix` | Reenvia Pix |
+| POST | `/api/pagamentos/:id/reenviar-recibo` | Reenvia recibo de pagamento |
+| POST | `/api/emprestimos/:id/promessas` | Registra promessa de pagamento |
+| PATCH | `/api/promessas-pagamento/:id` | Atualiza status de promessa |
 | POST | `/api/emprestimos/cobranca-lote` | Envia cobranca WhatsApp em lote |
 | PATCH | `/api/emprestimos/:id/renegociar` | Renegocia vencimento |
 | PATCH | `/api/emprestimos/:id/observacao` | Atualiza observacao |
@@ -354,6 +359,7 @@ Authorization: Bearer <token>
 | GET | `/api/carteira` | Resumo e ultimas movimentacoes da carteira |
 | GET | `/api/carteira/export` | Exporta movimentacoes em CSV |
 | POST | `/api/carteira/movimentacoes` | Registra entrada ou saida manual |
+| GET | `/api/fluxo-caixa` | Resumo de fluxo de caixa |
 
 ### Orcamentos
 

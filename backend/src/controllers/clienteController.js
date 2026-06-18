@@ -167,6 +167,7 @@ class ClienteController {
               parcelas: { orderBy: { numero: 'asc' } },
               pagamentos: { orderBy: { dataPagamento: 'desc' } },
               contratos: { orderBy: { criadoEm: 'desc' } },
+              promessasPagamento: { orderBy: { dataPrometida: 'desc' } },
             },
             orderBy: { dataEmprestimo: 'desc' },
           },
@@ -184,6 +185,14 @@ class ClienteController {
       const operacoesQuitadas = cliente.emprestimos.filter(e => e.statusOperacao === 'QUITADO');
       const operacoesCanceladas = cliente.emprestimos.filter(e => e.statusOperacao === 'CANCELADO');
       const parcelas = cliente.emprestimos.flatMap(e => e.parcelas.map(p => ({ ...p, numeroOperacao: e.numeroOperacao })));
+      const pagamentos = cliente.emprestimos.flatMap(e => e.pagamentos.map(p => ({ ...p, numeroOperacao: e.numeroOperacao })));
+      const promessas = cliente.emprestimos.flatMap(e => e.promessasPagamento.map(p => ({ ...p, numeroOperacao: e.numeroOperacao })));
+      const totalTomado = cliente.emprestimos.reduce((acc, e) => acc + Number(e.valor || 0), 0);
+      const totalContratado = cliente.emprestimos.reduce((acc, e) => acc + Number(e.valorTotal || 0), 0);
+      const totalPago = pagamentos.reduce((acc, p) => acc + Number(p.valorPago || 0), 0);
+      const saldoDevedor = parcelas.filter(p => p.status !== 'pago').reduce((acc, p) => acc + Number(p.valor || 0), 0);
+      const lucroGerado = Math.max(0, totalContratado - totalTomado);
+      const lucroRecebido = Math.max(0, totalPago - Math.min(totalPago, totalTomado));
 
       return res.json({
         sucesso: true,
@@ -197,6 +206,12 @@ class ClienteController {
           parcelasPagas: parcelas.filter(p => p.status === 'pago').length,
           parcelasEmAberto: parcelas.filter(p => p.status === 'pendente').length,
           parcelasAtrasadas: parcelas.filter(p => p.status === 'atrasado').length,
+          totalTomado,
+          totalContratado,
+          totalPago,
+          saldoDevedor,
+          lucroGerado,
+          lucroRecebido,
         },
         documentos: cliente.documentos,
         contratos: cliente.contratos,
@@ -208,6 +223,8 @@ class ClienteController {
           todas: cliente.emprestimos,
         },
         parcelas,
+        pagamentos,
+        promessas,
       });
     } catch (error) {
       logger.error('Erro ao carregar historico do cliente', { clienteId: req.params.id, error: error.message });
@@ -235,6 +252,7 @@ class ClienteController {
       const emprestimoIds = cliente.emprestimos.map(emprestimo => emprestimo.id);
 
       await prisma.$transaction([
+        prisma.promessaPagamento.deleteMany({ where: { clienteId: id } }),
         prisma.pagamento.deleteMany({ where: { emprestimoId: { in: emprestimoIds } } }),
         prisma.contratoOperacao.deleteMany({ where: { clienteId: id } }),
         prisma.documentoCliente.deleteMany({ where: { clienteId: id } }),
