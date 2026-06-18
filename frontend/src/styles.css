@@ -141,6 +141,34 @@ nav { padding: 10px 0; display: grid; gap: 6px; overflow-y: auto; }
 .walletHistory .entrada { color: #047857; }
 .walletHistory .saida { color: #b91c1c; }
 .walletHistory small { color: var(--muted); text-align: right; }
+.walletHero { display: grid; grid-template-columns: minmax(320px, .9fr) 1.1fr; gap: 16px; margin-bottom: 16px; }
+.walletBalanceCard { min-height: 220px; border-radius: 8px; padding: 24px; color: #fff; background: linear-gradient(135deg, #082f2d, #0f766e); display: flex; justify-content: space-between; gap: 18px; box-shadow: 0 18px 40px rgba(15, 118, 110, .22); }
+.walletBalanceCard span { color: rgba(255,255,255,.72); font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .06em; }
+.walletBalanceCard strong { display: block; margin: 18px 0 10px; font-size: clamp(34px, 5vw, 58px); line-height: .95; letter-spacing: 0; }
+.walletBalanceCard p { max-width: 520px; margin: 0; color: rgba(255,255,255,.78); font-weight: 700; }
+.walletBalanceCard svg { flex: 0 0 auto; margin-top: 4px; color: #86efac; }
+.walletMiniCards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.walletMiniCards div { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 18px; display: grid; align-content: center; gap: 10px; box-shadow: 0 1px 3px rgba(15,23,42,.06); min-height: 104px; }
+.walletMiniCards span { color: var(--muted); font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; }
+.walletMiniCards strong { font-size: 23px; letter-spacing: 0; }
+.walletMiniCards .danger { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+.walletLayout { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 16px; align-items: start; }
+.walletEntryPanel { display: grid; gap: 14px; }
+.walletEntryForm { display: grid; gap: 10px; }
+.walletEntryForm label { color: var(--muted); font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; }
+.segmentedControl { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 4px; background: #eef2f7; border-radius: 8px; }
+.segmentedControl button { min-height: 38px; border: 0; border-radius: 6px; background: transparent; font-weight: 900; color: var(--muted); cursor: pointer; }
+.segmentedControl button.active { background: var(--surface); color: #0f766e; box-shadow: 0 1px 2px rgba(15,23,42,.08); }
+.walletLedgerList { display: grid; gap: 8px; }
+.walletLedgerRow { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.walletLedgerRow strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.walletLedgerRow span { color: var(--muted); font-size: 12px; font-weight: 700; }
+.walletLedgerRow b { white-space: nowrap; }
+.walletLedgerRow b.entrada { color: #047857; }
+.walletLedgerRow b.saida { color: #b91c1c; }
+.walletDot { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; font-weight: 1000; }
+.walletDot.entrada { background: #dcfce7; color: #047857; }
+.walletDot.saida { background: #fee2e2; color: #b91c1c; }
 .operationWorkbench { display: grid; grid-template-columns: minmax(290px, .85fr) minmax(0, 1.45fr); gap: 16px; }
 .queueGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .queueGrid div { min-height: 86px; border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: #f8fafc; display: grid; align-content: space-between; gap: 8px; }
@@ -368,7 +396,7 @@ tbody tr:hover td {
   .menuOpen .sidebarBackdrop { display: block; }
   .mobileClose { margin-left: auto; width: 34px; height: 34px; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; background: rgba(255,255,255,.06); color: white; display: grid; place-items: center; }
   .workspace { width: 100%; margin-left: 0; padding: 16px; }
-  .statsGrid, .statsGrid.compact, .contentGrid, .dashboardHero, .commandHero, .ownerDashboard, .salesCommand, .operationWorkbench, .inlineForm, .formGrid, .summaryStrip, .optionalDocs, .docUploadGrid, .settingsGrid { grid-template-columns: 1fr; }
+  .statsGrid, .statsGrid.compact, .contentGrid, .dashboardHero, .commandHero, .ownerDashboard, .salesCommand, .operationWorkbench, .inlineForm, .formGrid, .summaryStrip, .optionalDocs, .docUploadGrid, .settingsGrid, .walletHero, .walletLayout { grid-template-columns: 1fr; }
   .viewSwitch { display: grid; grid-template-columns: 1fr; width: 100%; }
   .commandTabs { grid-template-columns: 1fr; }
   .ledgerPanel { min-height: 220px; padding: 18px; }

@@ -12,6 +12,7 @@ import {
   Settings,
   ShieldCheck,
   Users,
+  Wallet,
   X,
 } from 'lucide-react';
 import { TIPOS } from '../lib/constants.js';
@@ -60,6 +61,7 @@ export function Shell({ children, active, setActive, onLogout, badges, globalSea
       itens: [
         { id: 'painel', label: 'Painel', icon: CircleDollarSign },
         { id: 'clientes', label: 'Clientes', icon: Users, badge: badges.clientes },
+        { id: 'carteira', label: 'Carteira', icon: Wallet },
       ],
     },
     {

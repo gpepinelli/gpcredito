@@ -19,6 +19,17 @@ class CarteiraController {
       return res.status(400).json({ sucesso: false, mensagem: error.message });
     }
   }
+
+  async exportar(req, res) {
+    try {
+      const csv = await carteiraService.exportarCsv();
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="carteira.csv"');
+      return res.send(csv);
+    } catch (error) {
+      return res.status(500).json({ sucesso: false, mensagem: error.message });
+    }
+  }
 }
 
 module.exports = new CarteiraController();

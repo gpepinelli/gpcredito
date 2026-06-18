@@ -4,6 +4,7 @@ import {
   Check,
   CircleDollarSign,
   ClipboardList,
+  Download,
   Eye,
   EyeOff,
   FileText,
@@ -16,6 +17,7 @@ import {
   Upload,
   Trash2,
   Users,
+  Wallet,
   X,
 } from 'lucide-react';
 import { ScoreBar, SortTh, StatusBadge } from './components/common.jsx';
@@ -23,15 +25,14 @@ import { GlobalSearch, Login, Modal, PageHeader, SearchBox, Shell, Stat, ToastSt
 import { ClienteDetalheModal, ConfirmacaoModal, ExclusaoModal, ObservacaoModal, PagamentoModal, ParcelasModal, ProdutoExclusaoModal, RenegociacaoModal } from './components/modals.jsx';
 import { useOrdenacao } from './hooks/useOrdenacao.js';
 import { api, apiUpload } from './lib/api.js';
-import { CONFIG_PADRAO, JUROS_NORMAL_VENDA, TIPOS } from './lib/constants.js';
+import { API_BASE, CONFIG_PADRAO, JUROS_NORMAL_VENDA, TIPOS } from './lib/constants.js';
 import { calcularParcelas, operacaoPendente } from './lib/finance.js';
 import { dataCurta, moeda } from './lib/format.js';
 import { Configuracoes, RelatorioVendas, Relatorios } from './pages/reports.jsx';
 
-function Painel({ dados, resumoVendas, recarregar, configuracoes = CONFIG_PADRAO, notificar }) {
+function Painel({ dados, resumoVendas, recarregar, configuracoes = CONFIG_PADRAO }) {
   const [visao, setVisao] = useState('financeiro');
   const [mostrarValores, setMostrarValores] = useState(() => localStorage.getItem('gp_mostrar_valores') !== 'false');
-  const [movCarteira, setMovCarteira] = useState({ tipo: 'ENTRADA', valor: '', descricao: '' });
   const faturamentoVendas = Object.values(resumoVendas?.porTipo || {}).reduce((acc, item) => acc + item.faturamento, 0);
   const lucroVendas = Object.values(resumoVendas?.porTipo || {}).reduce((acc, item) => acc + item.lucro, 0);
   const alertas = dados.alertas || {};
@@ -56,18 +57,6 @@ function Painel({ dados, resumoVendas, recarregar, configuracoes = CONFIG_PADRAO
   useEffect(() => {
     localStorage.setItem('gp_mostrar_valores', mostrarValores ? 'true' : 'false');
   }, [mostrarValores]);
-
-  async function registrarMovimentacaoCarteira(event) {
-    event.preventDefault();
-    try {
-      await api('/carteira/movimentacoes', { method: 'POST', body: JSON.stringify(movCarteira) });
-      setMovCarteira({ tipo: 'ENTRADA', valor: '', descricao: '' });
-      notificar?.('sucesso', 'Carteira atualizada.');
-      await recarregar?.();
-    } catch (error) {
-      notificar?.('erro', error.message);
-    }
-  }
 
   return (
     <>
@@ -127,27 +116,6 @@ function Painel({ dados, resumoVendas, recarregar, configuracoes = CONFIG_PADRAO
           </section>
 
           <section className="operationWorkbench">
-            <article className="panel walletPanel">
-              <div className="panelTitle">Movimentar Carteira</div>
-              <form className="walletForm" onSubmit={registrarMovimentacaoCarteira}>
-                <select value={movCarteira.tipo} onChange={(event) => setMovCarteira((atual) => ({ ...atual, tipo: event.target.value }))}>
-                  <option value="ENTRADA">Entrada</option>
-                  <option value="SAIDA">Saida</option>
-                </select>
-                <input type="number" min="0.01" step="0.01" placeholder="Valor" value={movCarteira.valor} onChange={(event) => setMovCarteira((atual) => ({ ...atual, valor: event.target.value }))} required />
-                <input type="text" placeholder="Descricao" value={movCarteira.descricao} onChange={(event) => setMovCarteira((atual) => ({ ...atual, descricao: event.target.value }))} />
-                <button className="primaryButton" type="submit">Registrar</button>
-              </form>
-              <div className="walletHistory">
-                {(carteira.ultimas || []).slice(0, 5).map((item) => (
-                  <div key={item.id}>
-                    <span className={item.tipo === 'ENTRADA' ? 'entrada' : 'saida'}>{item.tipo === 'ENTRADA' ? '+' : '-'} {valorPrivado(item.valor)}</span>
-                    <small>{item.descricao || item.emprestimo?.numeroOperacao || 'Movimentacao manual'}</small>
-                  </div>
-                ))}
-                {!(carteira.ultimas || []).length && <p className="muted">Nenhuma movimentacao registrada.</p>}
-              </div>
-            </article>
             <article className="panel">
               <div className="panelTitle">Situacao Operacional</div>
               <div className="queueGrid">
@@ -229,6 +197,112 @@ function Painel({ dados, resumoVendas, recarregar, configuracoes = CONFIG_PADRAO
           </section>
         </div>
       )}
+    </>
+  );
+}
+
+function Carteira({ dados, recarregar, notificar, configuracoes = CONFIG_PADRAO }) {
+  const [form, setForm] = useState({ tipo: 'ENTRADA', valor: '', descricao: '' });
+  const financeiro = dados.financeiro?.resumo || {};
+  const carteira = financeiro.carteira || {};
+  const capitalInicial = Number(carteira.capitalInicial ?? configuracoes.carteiraOperacional ?? 0);
+  const entradas = Number(carteira.entradas || 0);
+  const saidas = Number(carteira.saidas || 0);
+  const saldo = Number(carteira.saldo ?? capitalInicial + entradas - saidas);
+  const prontoLiberar = Number(financeiro.valorAguardandoLiberacao || 0);
+  const saldoProjetado = saldo - prontoLiberar;
+  const ultimas = carteira.ultimas || [];
+
+  async function registrar(event) {
+    event.preventDefault();
+    try {
+      await api('/carteira/movimentacoes', { method: 'POST', body: JSON.stringify(form) });
+      setForm({ tipo: 'ENTRADA', valor: '', descricao: '' });
+      notificar?.('sucesso', 'Movimentacao registrada.');
+      await recarregar();
+    } catch (error) {
+      notificar?.('erro', error.message);
+    }
+  }
+
+  async function exportarCsv() {
+    try {
+      const token = localStorage.getItem('gp_token');
+      const resposta = await fetch(`${API_BASE}/carteira/export`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!resposta.ok) throw new Error('Nao foi possivel exportar CSV');
+      const blob = await resposta.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `carteira-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      notificar?.('erro', error.message);
+    }
+  }
+
+  return (
+    <>
+      <PageHeader
+        title="Carteira"
+        subtitle="Controle do capital da operacao, liberacoes e movimentacoes."
+        action={<button className="ghostButton" onClick={exportarCsv}><Download size={16} /> Exportar CSV</button>}
+      />
+      <section className="walletHero">
+        <article className="walletBalanceCard">
+          <div>
+            <span>Saldo atual da carteira</span>
+            <strong>{moeda(saldo)}</strong>
+            <p>Capital disponivel apos entradas, saidas e creditos ja liberados.</p>
+          </div>
+          <Wallet size={34} />
+        </article>
+        <div className="walletMiniCards">
+          <div><span>Capital inicial</span><strong>{moeda(capitalInicial)}</strong></div>
+          <div><span>Entradas manuais</span><strong>{moeda(entradas)}</strong></div>
+          <div><span>Saidas e liberacoes</span><strong>{moeda(saidas)}</strong></div>
+          <div className={saldoProjetado < 0 ? 'danger' : ''}><span>Apos aprovadas</span><strong>{moeda(saldoProjetado)}</strong></div>
+        </div>
+      </section>
+
+      <section className="walletLayout">
+        <article className="panel walletEntryPanel">
+          <div className="panelTitle">Nova movimentacao</div>
+          <form className="walletEntryForm" onSubmit={registrar}>
+            <label>Tipo</label>
+            <div className="segmentedControl">
+              <button type="button" className={form.tipo === 'ENTRADA' ? 'active' : ''} onClick={() => setForm((atual) => ({ ...atual, tipo: 'ENTRADA' }))}>Entrada</button>
+              <button type="button" className={form.tipo === 'SAIDA' ? 'active' : ''} onClick={() => setForm((atual) => ({ ...atual, tipo: 'SAIDA' }))}>Saida</button>
+            </div>
+            <label>Valor</label>
+            <input type="number" min="0.01" step="0.01" value={form.valor} onChange={(event) => setForm((atual) => ({ ...atual, valor: event.target.value }))} placeholder="0,00" required />
+            <label>Descricao</label>
+            <input type="text" value={form.descricao} onChange={(event) => setForm((atual) => ({ ...atual, descricao: event.target.value }))} placeholder="Ex: aporte, retirada, ajuste de caixa" />
+            <button className="primaryButton" type="submit">Registrar movimentacao</button>
+          </form>
+          <div className="warningBox">Liberacoes de credito sao debitadas automaticamente quando voce clica em Liberar na operacao.</div>
+        </article>
+
+        <article className="panel walletLedger">
+          <div className="panelTitle">Ultimas movimentacoes</div>
+          <div className="walletLedgerList">
+            {ultimas.map((item) => (
+              <div key={item.id} className="walletLedgerRow">
+                <div className={item.tipo === 'ENTRADA' ? 'walletDot entrada' : 'walletDot saida'}>{item.tipo === 'ENTRADA' ? '+' : '-'}</div>
+                <div>
+                  <strong>{item.descricao || item.emprestimo?.numeroOperacao || 'Movimentacao manual'}</strong>
+                  <span>{dataCurta(item.criadoEm)} {item.emprestimo?.cliente?.nome ? `- ${item.emprestimo.cliente.nome}` : ''}</span>
+                </div>
+                <b className={item.tipo === 'ENTRADA' ? 'entrada' : 'saida'}>{item.tipo === 'ENTRADA' ? '+' : '-'} {moeda(item.valor)}</b>
+              </div>
+            ))}
+            {!ultimas.length && <p className="muted">Nenhuma movimentacao registrada.</p>}
+          </div>
+        </article>
+      </section>
     </>
   );
 }
@@ -1259,7 +1333,8 @@ export default function App() {
       globalSearch={<GlobalSearch query={buscaGlobal} setQuery={setBuscaGlobal} resultados={resultadosGlobais} onOpenCliente={(id) => { setClienteDetalhe(id); setBuscaGlobal(''); }} onOpenOperacao={abrirResultadoOperacao} />}
     >
       {erro && <div className="errorBanner">{erro}</div>}
-      {active === 'painel' && <Painel dados={dados} resumoVendas={resumoVendas} recarregar={carregar} configuracoes={configuracoes} notificar={notificar} />}
+      {active === 'painel' && <Painel dados={dados} resumoVendas={resumoVendas} recarregar={carregar} configuracoes={configuracoes} />}
+      {active === 'carteira' && <Carteira dados={dados} recarregar={carregar} notificar={notificar} configuracoes={configuracoes} />}
       {active === 'tarefas' && <TarefasHoje emprestimos={dados.emprestimos} abrirPagar={setPagamento} aceitarManual={aceitarManual} liberarDinheiro={liberarDinheiro} reenviarPix={reenviarPix} />}
       {active === 'orcamentos' && <Orcamentos clientes={dados.clientes} configuracoes={configuracoes} notificar={notificar} converterOrcamento={converterOrcamento} refreshKey={orcamentosRefreshKey} excluirOrcamento={(orcamento) => setExclusao({ tipo: 'orcamento', id: orcamento.id, nome: `orcamento de ${orcamento.cliente?.nome || 'simulacao'}`, resumo: `Valor ${moeda(orcamento.valor)}, ${orcamento.parcelas} parcela(s), status ${orcamento.status}. O PDF salvo tambem sera removido.` })} />}
       {active === 'clientes' && <Clientes clientes={dados.clientes} salvarCliente={salvarCliente} verCliente={setClienteDetalhe} onUnauthorized={encerrarSessao} filtros={filtrosClientes} setFiltros={setFiltrosClientes} paginacao={paginacaoClientes} excluirCliente={(cliente) => setExclusao({ tipo: 'cliente', id: cliente.id, nome: cliente.nome, resumo: `Este cliente tem ${cliente.emprestimos?.length || 0} operacao(oes) aberta(s) vinculada(s). Documentos, contratos, parcelas, pagamentos e vendas vinculadas tambem serao removidos.` })} />}

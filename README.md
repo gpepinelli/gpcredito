@@ -209,8 +209,10 @@ O backend serve `frontend/dist` quando o build existe.
 - Cada parametro tem salvamento individual, restauracao individual e destaque quando foi alterado em relacao ao padrao.
 - Restaurar todos os padroes exige senha de exclusao.
 - Banco, senha admin, senha de exclusao, segredo do token e adaptador WhatsApp continuam no `.env`.
-- Painel financeiro possui ocultacao de valores, carteira operacional configuravel, movimentacoes de carteira, capital aprovado para liberar e saldo restante.
+- Painel financeiro possui ocultacao de valores, carteira operacional configuravel, capital aprovado para liberar e saldo restante.
+- Aba Carteira concentra saldo, entradas, saidas, historico de movimentacoes e exportacao CSV.
 - Ao marcar uma operacao aprovada como liberada, o principal e debitado automaticamente da carteira.
+- Operacoes ja liberadas antes do modulo de carteira sao sincronizadas automaticamente como saida.
 
 ### Configuracoes operacionais
 
@@ -348,6 +350,7 @@ Authorization: Bearer <token>
 | Metodo | Rota | Descricao |
 |---|---|---|
 | GET | `/api/carteira` | Resumo e ultimas movimentacoes da carteira |
+| GET | `/api/carteira/export` | Exporta movimentacoes em CSV |
 | POST | `/api/carteira/movimentacoes` | Registra entrada ou saida manual |
 
 ### Orcamentos

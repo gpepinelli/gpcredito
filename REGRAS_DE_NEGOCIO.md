@@ -291,9 +291,11 @@ Valor da parcela: 100,00
 - A carteira operacional e manual, vem de `CARTEIRA_OPERACIONAL` e representa o capital proprio reservado pelo admin para operar.
 - Entradas e saidas manuais de carteira ficam registradas em `carteira_movimentacoes`.
 - Ao liberar uma operacao aprovada, o valor principal do emprestimo e debitado automaticamente da carteira uma unica vez.
+- Operacoes antigas ja liberadas, em dia, atrasadas ou quitadas sem movimentacao vinculada devem ser sincronizadas automaticamente como saida da carteira.
 - O saldo atual da carteira e calculado como `CARTEIRA_OPERACIONAL + entradas - saidas - creditos liberados`.
 - O saldo apos liberacoes considera tambem operacoes aprovadas ainda nao liberadas.
 - Se a carteira nao tiver saldo suficiente, a liberacao deve ser bloqueada com mensagem clara.
+- A aba Carteira deve permitir entrada manual, saida manual, consulta do historico e exportacao CSV.
 - O painel pode ocultar/mostrar valores financeiros sensiveis no navegador.
 - Linha atrasada e destacada.
 - Pix pode ser copiado com um clique.

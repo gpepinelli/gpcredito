@@ -26,7 +26,30 @@ async function totais(tx = prisma) {
 }
 
 class CarteiraService {
+  async sincronizarLiberacoesAntigas(tx = prisma) {
+    const emprestimos = await tx.emprestimo.findMany({
+      where: {
+        statusOperacao: { in: ['LIBERADO', 'EM_DIA', 'ATRASADO', 'QUITADO'] },
+        carteiraMovimentacoes: { none: { tipo: 'SAIDA' } },
+      },
+      select: { id: true, numeroOperacao: true, valor: true },
+    });
+
+    for (const emprestimo of emprestimos) {
+      await tx.carteiraMovimentacao.create({
+        data: {
+          tipo: 'SAIDA',
+          valor: arredondar(emprestimo.valor),
+          descricao: `Liberacao da operacao ${emprestimo.numeroOperacao}`,
+          emprestimoId: emprestimo.id,
+        },
+      });
+    }
+    return emprestimos.length;
+  }
+
   async resumo() {
+    await this.sincronizarLiberacoesAntigas();
     const [resumo, ultimas] = await Promise.all([
       totais(),
       prisma.carteiraMovimentacao.findMany({
@@ -36,6 +59,30 @@ class CarteiraService {
       }),
     ]);
     return { ...resumo, ultimas };
+  }
+
+  async listarMovimentacoes() {
+    await this.sincronizarLiberacoesAntigas();
+    return prisma.carteiraMovimentacao.findMany({
+      include: { emprestimo: { select: { numeroOperacao: true, cliente: { select: { nome: true } } } } },
+      orderBy: { criadoEm: 'desc' },
+    });
+  }
+
+  async exportarCsv() {
+    const movimentacoes = await this.listarMovimentacoes();
+    const linhas = [
+      ['data', 'tipo', 'valor', 'descricao', 'operacao', 'cliente'],
+      ...movimentacoes.map(item => [
+        item.criadoEm.toISOString(),
+        item.tipo,
+        item.valor.toFixed(2).replace('.', ','),
+        item.descricao || '',
+        item.emprestimo?.numeroOperacao || '',
+        item.emprestimo?.cliente?.nome || '',
+      ]),
+    ];
+    return linhas.map(linha => linha.map(valor => `"${String(valor).replace(/"/g, '""')}"`).join(';')).join('\n');
   }
 
   async movimentar({ tipo, valor, descricao = null, emprestimoId = null }) {

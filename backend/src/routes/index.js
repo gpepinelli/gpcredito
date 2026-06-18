@@ -72,6 +72,7 @@ router.put('/configuracoes/:chave', configuracaoController.atualizar);
 router.post('/configuracoes/reset/todos', configuracaoController.resetarTodos);
 router.post('/configuracoes/reset/:chave', configuracaoController.resetar);
 router.get('/carteira', carteiraController.resumo);
+router.get('/carteira/export', carteiraController.exportar);
 router.post('/carteira/movimentacoes',
   [body('tipo').isIn(['ENTRADA', 'SAIDA']).withMessage('Tipo invalido'),
    body('valor').isFloat({ min: 0.01 }).withMessage('Valor invalido'),
