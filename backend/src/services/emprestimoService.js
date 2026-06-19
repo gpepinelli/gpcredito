@@ -35,17 +35,18 @@ function erroNumeracaoDuplicada(error) {
     && String(error?.meta?.target || '').includes('numero_');
 }
 
-async function gerarNumero(prefixo, campo) {
+async function gerarNumero(prefixo) {
   const ano = new Date().getFullYear();
-  const inicio = `${prefixo}-${ano}-`;
-  const ultima = await prisma.emprestimo.findFirst({
-    where: { [campo]: { startsWith: inicio } },
-    orderBy: { [campo]: 'desc' },
-    select: { [campo]: true },
-  });
-  const valorAtual = ultima?.[campo] || '';
-  const sequencial = Number(valorAtual.split('-').pop() || 0) + 1;
-  return `${inicio}${String(sequencial).padStart(6, '0')}`;
+  const chave = `${prefixo}-${ano}`;
+  const [registro] = await prisma.$queryRaw`
+    INSERT INTO "numeracoes_sequenciais" ("id", "chave", "valor", "criado_em", "atualizado_em")
+    VALUES (${chave}, ${chave}, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT ("chave") DO UPDATE
+    SET "valor" = "numeracoes_sequenciais"."valor" + 1,
+        "atualizado_em" = CURRENT_TIMESTAMP
+    RETURNING "valor"
+  `;
+  return `${chave}-${String(Number(registro.valor)).padStart(6, '0')}`;
 }
 
 class EmprestimoService {
@@ -111,8 +112,8 @@ class EmprestimoService {
     let emprestimo;
 
     for (let tentativa = 1; tentativa <= 3; tentativa++) {
-      numeroOperacao = await gerarNumero('OP', 'numeroOperacao');
-      numeroContrato = await gerarNumero('CT', 'numeroContrato');
+      numeroOperacao = await gerarNumero('OP');
+      numeroContrato = await gerarNumero('CT');
       const caminhoContrato = contratoService.caminhoRelativoContrato(cliente, numeroOperacao);
 
       try {

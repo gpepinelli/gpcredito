@@ -89,6 +89,8 @@ Este documento e a referencia funcional do sistema. Quando houver divergencia en
 
 - Operacao: `OP-ANO-SEQUENCIAL`, exemplo `OP-2026-000001`.
 - Contrato: `CT-ANO-SEQUENCIAL`.
+- O sequencial e controlado pela tabela `numeracoes_sequenciais` com incremento atomico no banco, separado por prefixo e ano.
+- Nao usar busca do ultimo emprestimo para gerar o proximo numero, pois isso causa disputa em criacoes simultaneas.
 
 ### Contrato e aceite
 

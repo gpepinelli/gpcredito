@@ -168,6 +168,7 @@ O backend serve `frontend/dist` quando o build existe.
 - Juros de credito calculado sobre saldo devedor.
 - Operacoes parceladas usam parcela fixa pelo total SAC calculado.
 - O total e calculado pela amortizacao sobre saldo devedor e depois dividido em parcelas iguais.
+- Numeracao de operacoes e contratos usa contador atomico no banco por ano, evitando duplicidade em criacoes simultaneas.
 - Aceite manual do contrato.
 - Liberacao do dinheiro apos aprovacao.
 - Pagamento manual e pagamento de parcela.
