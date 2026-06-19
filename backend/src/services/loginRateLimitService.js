@@ -3,6 +3,7 @@ const prisma = require('../lib/prisma');
 const MAX_TENTATIVAS = 5;
 const JANELA_MS = 15 * 60 * 1000;
 const BLOQUEIO_MS = 15 * 60 * 1000;
+const RETENCAO_MS = 30 * 24 * 60 * 60 * 1000;
 
 function normalizarChave(chave = '') {
   return String(chave || 'desconhecido').slice(0, 180);
@@ -58,6 +59,22 @@ class LoginRateLimitService {
     const chave = normalizarChave(chaveBruta);
     await prisma.loginRateLimit.deleteMany({ where: { chave } });
   }
+
+  async limparAntigos(agora = new Date()) {
+    const limite = new Date(agora.getTime() - RETENCAO_MS);
+    return prisma.loginRateLimit.deleteMany({
+      where: {
+        atualizadoEm: { lt: limite },
+      },
+    });
+  }
 }
 
-module.exports = new LoginRateLimitService();
+module.exports = Object.assign(new LoginRateLimitService(), {
+  normalizarChave,
+  expirouJanela,
+  MAX_TENTATIVAS,
+  JANELA_MS,
+  BLOQUEIO_MS,
+  RETENCAO_MS,
+});

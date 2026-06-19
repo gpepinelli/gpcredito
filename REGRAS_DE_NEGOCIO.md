@@ -327,6 +327,7 @@ Valor da parcela: 100,00
 - Token de sessao com HMAC-SHA256.
 - Token valido pelo valor de `TOKEN_EXPIRACAO_HORAS` (padrao 8 horas).
 - Login possui rate limit persistido no banco em `login_rate_limits`, alem do limite rapido da rota.
+- Registros de rate limit de login com mais de 30 dias devem ser removidos automaticamente por cron.
 - Exclusoes exigem senha separada ou fallback para senha admin.
 - Senhas e tokens sao mascarados nos logs.
 - Rotas inexistentes em `/api` devem responder JSON 404, nunca o HTML do painel.

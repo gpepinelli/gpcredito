@@ -9,6 +9,7 @@ const emprestimoService = require('../services/emprestimoService');
 const orcamentoService = require('../services/orcamentoService');
 const scoreService = require('../services/scoreService');
 const pixCobrancaService = require('../services/pixCobrancaService');
+const loginRateLimitService = require('../services/loginRateLimitService');
 const config = require('../services/configuracaoService');
 const logger = require('../utils/logger');
 
@@ -16,6 +17,7 @@ const locks = {
   vencimentos: false,
   renovacoes: false,
   orcamentos: false,
+  loginRateLimit: false,
 };
 
 async function executarComLock(chave, descricao, tarefa) {
@@ -139,9 +141,21 @@ async function expirarOrcamentosInterno() {
   }
 }
 
+async function limparLoginRateLimitsInterno() {
+  try {
+    const resultado = await loginRateLimitService.limparAntigos();
+    if (resultado.count > 0) {
+      logger.info('[CRON] Tentativas antigas de login removidas', { total: resultado.count });
+    }
+  } catch (error) {
+    logger.error('Erro ao limpar tentativas antigas de login', { error: error.message });
+  }
+}
+
 const verificarVencimentos = () => executarComLock('vencimentos', 'Verificacao de vencimentos', verificarVencimentosInterno);
 const verificarRenovacoes = () => executarComLock('renovacoes', 'Verificacao de renovacoes', verificarRenovacoesInterno);
 const expirarOrcamentos = () => executarComLock('orcamentos', 'Expiracao de orcamentos', expirarOrcamentosInterno);
+const limparLoginRateLimits = () => executarComLock('loginRateLimit', 'Limpeza de rate limits de login', limparLoginRateLimitsInterno);
 
 function cronExpression(hora = '09:00') {
   const [hh, mm] = String(hora).split(':').map(Number);
@@ -159,7 +173,8 @@ async function iniciarJobs() {
   cron.schedule(cronExpression(horaTarde), verificarVencimentos, { timezone });
   cron.schedule(cronExpression(horaRenovacao), verificarRenovacoes, { timezone });
   cron.schedule('0 * * * *', expirarOrcamentos, { timezone });
+  cron.schedule('30 3 * * *', limparLoginRateLimits, { timezone });
   logger.info('✅ Cron jobs registrados: cobranças às 09:00 e 18:00; renovações às 09:30 (Brasília)');
 }
 
-module.exports = { iniciarJobs, verificarVencimentos, verificarRenovacoes, expirarOrcamentos };
+module.exports = { iniciarJobs, verificarVencimentos, verificarRenovacoes, expirarOrcamentos, limparLoginRateLimits };

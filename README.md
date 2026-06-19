@@ -93,6 +93,24 @@ As regras operacionais de credito, score, cobranca, vendas, Pix e sistema podem 
 
 Para Mercado Pago em producao, configure tambem `MP_WEBHOOK_SECRET`. Sem essa chave o webhook continua aceitando eventos para manter compatibilidade, mas com a chave configurada o backend valida o `x-signature` antes de processar pagamentos.
 
+Variaveis obrigatorias para producao:
+
+- `DATABASE_URL`
+- `PORT`
+- `APP_URL`
+- `CORS_ORIGIN`
+- `ADMIN_PASSWORD`
+- `ADMIN_DELETE_PASSWORD`
+- `ADMIN_TOKEN_SECRET`
+- `WHATSAPP_ADAPTER`
+- `WHATSAPP_SESSION_PATH`
+
+Variaveis opcionais conforme uso:
+
+- Pix manual: `PIX_CHAVE`, `PIX_NOME`, `PIX_CIDADE`
+- Mercado Pago: `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_ATIVO`, `PIX_AUTOMATICO_VENCIMENTO`, `MP_WEBHOOK_SECRET`
+- Python: `PYTHON_BIN`
+
 ## Banco de dados
 
 ```bash
@@ -422,6 +440,7 @@ Rotas inexistentes dentro de `/api` retornam JSON 404. Isso evita que um endpoin
 ## Seguranca e operacao
 
 - Login possui protecao em duas camadas: limite rapido por IP na rota e bloqueio persistido no banco em `login_rate_limits`.
+- Tentativas antigas de login sao removidas automaticamente apos 30 dias.
 - Webhook Mercado Pago pode validar `x-signature` usando `MP_WEBHOOK_SECRET`.
 - Configuracoes desconhecidas nao usam fallback automatico para variaveis de ambiente sensiveis.
 - O backend usa Helmet com politica conservadora para headers HTTP sem bloquear assets do painel.
