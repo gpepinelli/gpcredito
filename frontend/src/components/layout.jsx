@@ -10,7 +10,6 @@ import {
   Menu,
   Search,
   Settings,
-  ShieldCheck,
   Users,
   Wallet,
   X,
@@ -41,8 +40,8 @@ export function Login({ onLogin }) {
   return (
     <main className="loginPage">
       <form className="loginPanel" onSubmit={entrar}>
-        <div className="brandMark"><ShieldCheck size={24} /></div>
-        <h1>GPCredito V2</h1>
+        <img className="loginLogo" src="/brand/logo-horizontal.png" alt="GPCredito" />
+        <h1>GPCrédito</h1>
         <p>Gestao de credito, vendas e carteira em uma operacao unica.</p>
         <label htmlFor="senha">Senha administrativa</label>
         <input id="senha" type="password" value={senha} onChange={(event) => setSenha(event.target.value)} autoFocus />
@@ -97,13 +96,12 @@ export function Shell({ children, active, setActive, onLogout, badges, globalSea
     <div className={menuAberto ? 'appShell menuOpen' : 'appShell'}>
       <header className="mobileTopbar">
         <button className="iconButton" onClick={() => setMenuAberto(true)} title="Abrir menu"><Menu size={20} /></button>
-        <div><strong>GPCredito</strong><span>Painel administrativo</span></div>
+        <img className="mobileBrand" src="/brand/logo-horizontal.png" alt="GPCredito" />
       </header>
       <button className="sidebarBackdrop" type="button" onClick={() => setMenuAberto(false)} aria-label="Fechar menu" />
       <aside className="sidebar">
         <div className="logo">
-          <div className="logoIcon"><ShieldCheck size={20} /></div>
-          <div><strong>GPCredito</strong><span>Painel administrativo</span></div>
+          <img className="sidebarLogo" src="/brand/logo-horizontal.png" alt="GPCredito" />
           <button className="mobileClose" onClick={() => setMenuAberto(false)} title="Fechar menu"><X size={18} /></button>
         </div>
         <nav>
