@@ -18,6 +18,7 @@ from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table,
     TableStyle, HRFlowable, KeepTogether
 )
+from pdf_branding import draw_branding
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -26,7 +27,7 @@ def fmt_moeda(valor):
 
 def carregar_dados(argumento):
     if os.path.exists(argumento):
-        with open(argumento, "r", encoding="utf-8") as arquivo:
+        with open(argumento, "r", encoding="utf-8-sig") as arquivo:
             return json.load(arquivo)
     return json.loads(argumento)
 
@@ -53,9 +54,9 @@ def status_parcela(status):
 
 # ─── Paleta ─────────────────────────────────────────────────────────────────
 
-NAVY    = colors.HexColor("#0f172a")
-TEAL    = colors.HexColor("#0d9488")
-TEAL_LT = colors.HexColor("#ccfbf1")
+NAVY    = colors.HexColor("#071A2B")
+TEAL    = colors.HexColor("#C9A24A")
+TEAL_LT = colors.HexColor("#F6ECD1")
 GRAY    = colors.HexColor("#64748b")
 GRAY_LT = colors.HexColor("#f8fafc")
 WHITE   = colors.white
@@ -138,7 +139,7 @@ def gerar(dados: dict):
     doc = SimpleDocTemplate(
         saida, pagesize=A4,
         rightMargin=MARGIN, leftMargin=MARGIN,
-        topMargin=MARGIN, bottomMargin=MARGIN,
+        topMargin=2.7 * cm, bottomMargin=MARGIN,
     )
 
     titulo_s, subtitulo_s, secao_s, corpo_s, rodape_s = estilos()
@@ -260,7 +261,11 @@ def gerar(dados: dict):
         rodape_s
     ))
 
-    doc.build(story)
+    doc.build(
+        story,
+        onFirstPage=lambda canvas, doc_obj: draw_branding(canvas, doc_obj, "Contrato"),
+        onLaterPages=lambda canvas, doc_obj: draw_branding(canvas, doc_obj, "Contrato"),
+    )
     print(f"PDF gerado: {saida}")
 
 

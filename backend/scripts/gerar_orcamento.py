@@ -10,6 +10,8 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from pdf_branding import draw_branding
+
 
 def moeda(valor):
     return f"R$ {float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -22,7 +24,7 @@ def data_br(valor):
 
 def carregar_dados(argumento):
     if os.path.exists(argumento):
-        with open(argumento, "r", encoding="utf-8") as arquivo:
+        with open(argumento, "r", encoding="utf-8-sig") as arquivo:
             return json.load(arquivo)
     return json.loads(argumento)
 
@@ -31,12 +33,12 @@ def main():
     dados = carregar_dados(sys.argv[1])
     caminho = dados["caminhoSaida"]
     styles = getSampleStyleSheet()
-    titulo = ParagraphStyle("Titulo", parent=styles["Title"], fontName="Helvetica-Bold", fontSize=17, textColor=colors.HexColor("#0f172a"))
-    secao = ParagraphStyle("Secao", parent=styles["Heading2"], fontName="Helvetica-Bold", fontSize=11, textColor=colors.HexColor("#0d9488"))
+    titulo = ParagraphStyle("Titulo", parent=styles["Title"], fontName="Helvetica-Bold", fontSize=17, textColor=colors.HexColor("#071A2B"))
+    secao = ParagraphStyle("Secao", parent=styles["Heading2"], fontName="Helvetica-Bold", fontSize=11, textColor=colors.HexColor("#C9A24A"))
     corpo = ParagraphStyle("Corpo", parent=styles["BodyText"], fontSize=9.5, leading=14)
     hint = ParagraphStyle("Hint", parent=styles["BodyText"], fontSize=8.5, textColor=colors.HexColor("#64748b"))
 
-    doc = SimpleDocTemplate(caminho, pagesize=A4, rightMargin=1.8 * cm, leftMargin=1.8 * cm, topMargin=1.6 * cm, bottomMargin=1.5 * cm)
+    doc = SimpleDocTemplate(caminho, pagesize=A4, rightMargin=1.8 * cm, leftMargin=1.8 * cm, topMargin=2.7 * cm, bottomMargin=1.8 * cm)
     story = []
     story.append(Paragraph(str(dados.get("empresa") or "GPCredito"), titulo))
     story.append(Paragraph("Orcamento de credito", secao))
@@ -84,7 +86,7 @@ def main():
         ])
     tabela = Table(linhas, repeatRows=1, colWidths=[1.1 * cm, 2.8 * cm, 2.6 * cm, 2.5 * cm, 2.8 * cm, 2.8 * cm])
     tabela.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f766e")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#071A2B")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, -1), 8),
@@ -95,8 +97,12 @@ def main():
     story.append(tabela)
     story.append(Spacer(1, 0.35 * cm))
     story.append(Paragraph("Este documento e apenas uma simulacao de credito. Nao substitui contrato, nao representa aceite e nao obriga liberacao de valor.", hint))
-    story.append(Paragraph("GPCredito V2", hint))
-    doc.build(story)
+    story.append(Paragraph("GPCredito", hint))
+    doc.build(
+        story,
+        onFirstPage=lambda canvas, doc_obj: draw_branding(canvas, doc_obj, "Orcamento"),
+        onLaterPages=lambda canvas, doc_obj: draw_branding(canvas, doc_obj, "Orcamento"),
+    )
 
 
 if __name__ == "__main__":
