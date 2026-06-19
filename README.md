@@ -109,6 +109,7 @@ Variaveis opcionais conforme uso:
 
 - Pix manual: `PIX_CHAVE`, `PIX_NOME`, `PIX_CIDADE`
 - Mercado Pago: `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_ATIVO`, `PIX_AUTOMATICO_VENCIMENTO`, `MP_WEBHOOK_SECRET`
+- Telegram interno: `TELEGRAM_ATIVO`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
 - Python: `PYTHON_BIN`
 
 ## Banco de dados
@@ -447,6 +448,25 @@ Rotas inexistentes dentro de `/api` retornam JSON 404. Isso evita que um endpoin
 - Os crons de cobranca, renovacao e expiracao de orcamentos possuem lock em memoria para impedir execucoes sobrepostas.
 - Geradores Python recebem os dados por arquivo temporario, evitando JSON grande ou sensivel exposto como argumento de processo.
 - `/health` retorna 503 quando o banco falha e mostra checks de database, storage e WhatsApp.
+- Telegram interno opcional para consultas rapidas e alertas administrativos.
+
+## Telegram interno
+
+O bot do Telegram e opcional e fica desativado por padrao. Ele nao conversa com clientes e nao substitui o painel. Serve como vigia administrativo para consultas rapidas pelo celular.
+
+Variaveis:
+
+- `TELEGRAM_ATIVO=true`
+- `TELEGRAM_BOT_TOKEN`: token gerado no BotFather
+- `TELEGRAM_CHAT_ID`: chat autorizado a usar os comandos
+
+Comandos:
+
+- `/status`: servidor, banco, WhatsApp e saldo da carteira
+- `/hoje`: vencendo hoje, vencendo amanha e atrasados
+- `/carteira`: capital inicial, entradas, saidas e saldo
+- `/atrasados`: primeiras operacoes em atraso
+- `/ajuda`: lista de comandos
 
 ## Validacao feita nesta revisao
 

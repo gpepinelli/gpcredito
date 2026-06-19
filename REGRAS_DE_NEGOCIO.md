@@ -334,6 +334,7 @@ Valor da parcela: 100,00
 - `/health` deve validar banco de dados, storage local e status do WhatsApp.
 - Headers HTTP de seguranca devem ser aplicados sem quebrar o painel React nem downloads de arquivos.
 - Configuracoes desconhecidas nao podem consultar automaticamente `process.env`; somente chaves definidas em `CONFIG_MAP` usam fallback de ambiente.
+- Telegram interno e opcional, restrito a `TELEGRAM_CHAT_ID`, e deve ser usado apenas para consultas/alertas administrativos.
 
 ## 11. Arquivos e persistencia
 

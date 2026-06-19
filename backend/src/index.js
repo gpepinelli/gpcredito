@@ -8,6 +8,7 @@ const fs = require('fs');
 const routes = require('./routes');
 const { iniciarJobs } = require('./jobs/cobrancaJob');
 const whatsapp = require('./integrations/whatsapp');
+const telegram = require('./integrations/telegram');
 const logger = require('./utils/logger');
 const prisma = require('./lib/prisma');
 
@@ -66,6 +67,7 @@ app.get('/health', async (req, res) => {
   const checks = {
     database: 'unknown',
     whatsapp: whatsapp.status ? whatsapp.status() : { connected: false, adapter: 'unknown' },
+    telegram: telegram.status ? telegram.status() : { enabled: false },
     storage: fs.existsSync(path.join(__dirname, '..', '..', 'storage')) ? 'ok' : 'missing',
   };
 
@@ -103,6 +105,7 @@ async function iniciar() {
     }
     await whatsapp.initialize();
     await iniciarJobs();
+    await telegram.initialize();
     app.listen(PORT, () => {
       logger.info(`🚀 Servidor rodando em http://localhost:${PORT}`);
     });
