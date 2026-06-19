@@ -5,6 +5,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 const cache = new Map();
 
 function envFallback(chave) {
+  if (!CONFIG_MAP[chave]) return undefined;
   if (chave === 'PIX_CHAVE') return process.env.PIX_CHAVE || process.env.MEU_PIX;
   if (chave === 'PIX_NOME') return process.env.PIX_NOME || process.env.PIX_TITULAR;
   if (chave === 'MERCADOPAGO_ATIVO') return process.env.MERCADOPAGO_ACCESS_TOKEN ? 'true' : undefined;
@@ -123,7 +124,7 @@ async function resetarTodos() {
 }
 
 async function getConfig(chave) {
-  if (!CONFIG_MAP[chave]) return process.env[chave];
+  if (!CONFIG_MAP[chave]) return '';
   const valorBanco = await buscarRegistro(chave);
   return valorComFallback(chave, valorBanco);
 }
@@ -150,4 +151,5 @@ module.exports = {
   getConfigBoolean,
   getConfigList,
   validarValor,
+  envFallback,
 };

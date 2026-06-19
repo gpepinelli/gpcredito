@@ -16,6 +16,10 @@ Este documento e a referencia funcional do sistema. Quando houver divergencia en
   - RG verso
   - comprovante de residencia
 - Upload aceito segue `UPLOAD_TIPOS_PERMITIDOS` e `UPLOAD_TAMANHO_MAXIMO_MB` (padrao JPG, PNG ou PDF, ate 5MB).
+- Upload de documento deve validar extensao, mimetype e assinatura real do arquivo:
+  - PDF deve iniciar com `%PDF-`
+  - PNG deve conter assinatura PNG
+  - JPG deve conter assinatura JPEG
 
 ### Exclusao
 
@@ -308,6 +312,7 @@ Valor da parcela: 100,00
 - O saldo atual da carteira e calculado como `CARTEIRA_OPERACIONAL + entradas - saidas - creditos liberados`.
 - O saldo apos liberacoes considera tambem operacoes aprovadas ainda nao liberadas.
 - Se a carteira nao tiver saldo suficiente, a liberacao deve ser bloqueada com mensagem clara.
+- Saidas manuais e liberacoes de credito devem usar lock transacional no banco antes de checar saldo e gravar movimentacao.
 - A aba Carteira deve permitir entrada manual, saida manual, consulta do historico e exportacao CSV.
 - O painel pode ocultar/mostrar valores financeiros sensiveis no navegador.
 - Linha atrasada e destacada.
@@ -327,6 +332,7 @@ Valor da parcela: 100,00
 - Rotas inexistentes em `/api` devem responder JSON 404, nunca o HTML do painel.
 - `/health` deve validar banco de dados, storage local e status do WhatsApp.
 - Headers HTTP de seguranca devem ser aplicados sem quebrar o painel React nem downloads de arquivos.
+- Configuracoes desconhecidas nao podem consultar automaticamente `process.env`; somente chaves definidas em `CONFIG_MAP` usam fallback de ambiente.
 
 ## 11. Arquivos e persistencia
 

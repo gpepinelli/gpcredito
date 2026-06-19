@@ -159,6 +159,7 @@ O backend serve `frontend/dist` quando o build existe.
 - Cadastro com nome, CPF, telefone e endereco.
 - CPF validado no backend.
 - Documentos opcionais: RG frente, RG verso e comprovante de residencia.
+- Upload de documentos valida extensao, mimetype e assinatura real do arquivo para JPG, PNG e PDF.
 - Detalhe do cliente com dados, resumo financeiro, operacoes, parcelas, acordos, contratos e documentos.
 - Criacao de nova operacao direto do detalhe do cliente.
 - Impressao limpa do resumo do cliente.
@@ -223,6 +224,7 @@ O backend serve `frontend/dist` quando o build existe.
 - Aba Carteira concentra saldo, entradas, saidas, historico de movimentacoes e exportacao CSV.
 - Ao marcar uma operacao aprovada como liberada, o principal e debitado automaticamente da carteira.
 - Operacoes ja liberadas antes do modulo de carteira sao sincronizadas automaticamente como saida.
+- Saidas manuais e liberacoes usam lock transacional no banco para evitar duas saidas simultaneas aprovarem o mesmo saldo.
 
 ### Configuracoes operacionais
 
@@ -421,6 +423,7 @@ Rotas inexistentes dentro de `/api` retornam JSON 404. Isso evita que um endpoin
 
 - Login possui protecao em duas camadas: limite rapido por IP na rota e bloqueio persistido no banco em `login_rate_limits`.
 - Webhook Mercado Pago pode validar `x-signature` usando `MP_WEBHOOK_SECRET`.
+- Configuracoes desconhecidas nao usam fallback automatico para variaveis de ambiente sensiveis.
 - O backend usa Helmet com politica conservadora para headers HTTP sem bloquear assets do painel.
 - Os crons de cobranca, renovacao e expiracao de orcamentos possuem lock em memoria para impedir execucoes sobrepostas.
 - Geradores Python recebem os dados por arquivo temporario, evitando JSON grande ou sensivel exposto como argumento de processo.

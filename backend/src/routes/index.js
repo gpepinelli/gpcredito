@@ -20,6 +20,7 @@ const { validarCPF } = require('../utils/calculadora');
 const config = require('../services/configuracaoService');
 
 const router = express.Router();
+const MIMES_UPLOAD_DOCUMENTO = new Set(['image/jpeg', 'image/png', 'application/pdf']);
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
@@ -33,6 +34,10 @@ const loginLimiter = rateLimit({
 const uploadDocumento = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (MIMES_UPLOAD_DOCUMENTO.has(file.mimetype)) return cb(null, true);
+    return cb(new Error('Formato invalido. Envie JPG, PNG ou PDF.'));
+  },
 });
 
 function processarUploadDocumento(req, res, next) {

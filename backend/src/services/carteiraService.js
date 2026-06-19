@@ -25,6 +25,10 @@ async function totais(tx = prisma) {
   };
 }
 
+async function bloquearCarteira(tx) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('gpcredito:carteira'))`;
+}
+
 class CarteiraService {
   async sincronizarLiberacoesAntigas(tx = prisma) {
     const emprestimos = await tx.emprestimo.findMany({
@@ -133,22 +137,26 @@ class CarteiraService {
     const valorNumerico = arredondar(valor);
     if (valorNumerico <= 0) throw new Error('Valor da movimentacao deve ser maior que zero');
 
-    if (tipoNormalizado === 'SAIDA') {
-      const resumo = await totais();
-      if (resumo.saldo < valorNumerico) throw new Error(`Saldo insuficiente na carteira. Disponivel: R$ ${resumo.saldo.toFixed(2)}`);
-    }
+    return prisma.$transaction(async (tx) => {
+      await bloquearCarteira(tx);
+      if (tipoNormalizado === 'SAIDA') {
+        const resumo = await totais(tx);
+        if (resumo.saldo < valorNumerico) throw new Error(`Saldo insuficiente na carteira. Disponivel: R$ ${resumo.saldo.toFixed(2)}`);
+      }
 
-    return prisma.carteiraMovimentacao.create({
-      data: {
-        tipo: tipoNormalizado,
-        valor: valorNumerico,
-        descricao: descricao || null,
-        emprestimoId,
-      },
+      return tx.carteiraMovimentacao.create({
+        data: {
+          tipo: tipoNormalizado,
+          valor: valorNumerico,
+          descricao: descricao || null,
+          emprestimoId,
+        },
+      });
     });
   }
 
   async debitarLiberacao(tx, emprestimo) {
+    await bloquearCarteira(tx);
     const jaDebitado = await tx.carteiraMovimentacao.findFirst({
       where: { emprestimoId: emprestimo.id, tipo: 'SAIDA' },
     });

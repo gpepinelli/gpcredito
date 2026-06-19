@@ -9,6 +9,15 @@ const UPLOADS_DIR = path.join(ROOT_DIR, 'uploads');
 const TIPOS_VALIDOS = new Set(['RG_FRENTE', 'RG_VERSO', 'COMPROVANTE_ENDERECO']);
 const MIMES_VALIDOS = new Set(['image/jpeg', 'image/png', 'application/pdf']);
 
+function assinaturaArquivoValida(arquivo) {
+  const buffer = arquivo?.buffer;
+  if (!Buffer.isBuffer(buffer) || buffer.length < 4) return false;
+  if (arquivo.mimetype === 'application/pdf') return buffer.subarray(0, 5).toString('ascii') === '%PDF-';
+  if (arquivo.mimetype === 'image/png') return buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  if (arquivo.mimetype === 'image/jpeg') return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  return false;
+}
+
 function extensaoPorMime(mimeType, nomeOriginal = '') {
   const ext = path.extname(nomeOriginal).toLowerCase();
   if (['.jpg', '.jpeg', '.png', '.pdf'].includes(ext)) return ext;
@@ -22,6 +31,7 @@ class DocumentoService {
     if (!TIPOS_VALIDOS.has(tipoDocumento)) throw new Error('Tipo de documento invalido');
     if (!arquivo) throw new Error('Arquivo obrigatorio');
     if (!MIMES_VALIDOS.has(arquivo.mimetype)) throw new Error('Formato invalido. Envie JPG, PNG ou PDF.');
+    if (!assinaturaArquivoValida(arquivo)) throw new Error('Arquivo invalido ou corrompido. Envie JPG, PNG ou PDF valido.');
 
     const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } });
     if (!cliente) throw new Error('Cliente nao encontrado');
@@ -121,4 +131,7 @@ class DocumentoService {
   }
 }
 
-module.exports = new DocumentoService();
+module.exports = Object.assign(new DocumentoService(), {
+  assinaturaArquivoValida,
+  extensaoPorMime,
+});
