@@ -1,35 +1,13 @@
-const { execFile } = require('child_process');
 const path = require('path');
-const { promisify } = require('util');
 const prisma = require('../lib/prisma');
 const { gerarParcelas } = require('../utils/calculadora');
 const config = require('./configuracaoService');
 const storageService = require('./storageService');
 const whatsapp = require('../integrations/whatsapp');
 const logger = require('../utils/logger');
+const { executarPythonJson } = require('../utils/pythonRunner');
 
-const execFileAsync = promisify(execFile);
 const ROOT_DIR = path.join(__dirname, '..', '..', '..');
-
-async function executarPython(scriptPath, dados) {
-  const tentativas = process.env.PYTHON_BIN
-    ? [{ comando: process.env.PYTHON_BIN, args: [scriptPath, dados] }]
-    : [
-        { comando: 'python', args: [scriptPath, dados] },
-        { comando: 'py', args: ['-3', scriptPath, dados] },
-        { comando: 'python3', args: [scriptPath, dados] },
-      ];
-  let ultimoErro = null;
-  for (const tentativa of tentativas) {
-    try {
-      return await execFileAsync(tentativa.comando, tentativa.args);
-    } catch (error) {
-      ultimoErro = error;
-      if (error.code !== 'ENOENT') throw error;
-    }
-  }
-  throw ultimoErro;
-}
 
 function dataBaseParaPrimeiroVencimento(primeiroVencimento, intervaloDias) {
   const base = new Date(primeiroVencimento);
@@ -84,7 +62,7 @@ class OrcamentoService {
       parcelasDetalhadas: simulacao.parcelas,
       caminhoSaida,
     });
-    await executarPython(path.join(ROOT_DIR, 'backend', 'scripts', 'gerar_orcamento.py'), dadosPdf);
+    await executarPythonJson(path.join(ROOT_DIR, 'backend', 'scripts', 'gerar_orcamento.py'), dadosPdf);
     await storageService.registrarPdf({
       tipo: 'ORCAMENTO',
       caminhoPdf,

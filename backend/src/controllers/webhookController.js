@@ -5,9 +5,53 @@ const prisma = require('../lib/prisma');
 const mercadopago = require('../integrations/mercadopago');
 const emprestimoService = require('../services/emprestimoService');
 const logger = require('../utils/logger');
+const crypto = require('crypto');
+
+function obterSegredoWebhook() {
+  return process.env.MP_WEBHOOK_SECRET || process.env.MERCADOPAGO_WEBHOOK_SECRET || '';
+}
+
+function partesAssinatura(header = '') {
+  return String(header).split(',').reduce((acc, parte) => {
+    const [chave, valor] = parte.split('=').map(item => item?.trim());
+    if (chave && valor) acc[chave] = valor;
+    return acc;
+  }, {});
+}
+
+function compararHash(left = '', right = '') {
+  const a = Buffer.from(String(left));
+  const b = Buffer.from(String(right));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function assinaturaValida(req) {
+  const segredo = obterSegredoWebhook();
+  if (!segredo) return true;
+
+  const signature = req.headers['x-signature'];
+  const requestId = req.headers['x-request-id'];
+  const paymentId = req.body?.data?.id;
+  if (!signature || !requestId || !paymentId) return false;
+
+  const partes = partesAssinatura(signature);
+  if (!partes.ts || !partes.v1) return false;
+
+  const manifest = `id:${paymentId};request-id:${requestId};ts:${partes.ts};`;
+  const esperado = crypto.createHmac('sha256', segredo).update(manifest).digest('hex');
+  return compararHash(esperado, partes.v1);
+}
 
 class WebhookController {
   async mercadoPago(req, res) {
+    if (!assinaturaValida(req)) {
+      logger.warn('Webhook Mercado Pago recusado por assinatura invalida', {
+        paymentId: req.body?.data?.id,
+        requestId: req.headers['x-request-id'],
+      });
+      return res.status(401).json({ recebido: false, mensagem: 'Assinatura invalida' });
+    }
+
     res.status(200).json({ recebido: true });
 
     try {

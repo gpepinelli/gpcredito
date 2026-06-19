@@ -6,6 +6,7 @@
 import sys
 import json
 import datetime
+import os
 from io import BytesIO
 
 from reportlab.lib.pagesizes import A4
@@ -22,6 +23,12 @@ from reportlab.platypus import (
 
 def fmt_moeda(valor):
     return f"R$ {float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+def carregar_dados(argumento):
+    if os.path.exists(argumento):
+        with open(argumento, "r", encoding="utf-8") as arquivo:
+            return json.load(arquivo)
+    return json.loads(argumento)
 
 def fmt_data(iso_str):
     dt = datetime.datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
@@ -263,5 +270,5 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Uso: python3 gerar_contrato.py '<json>'", file=sys.stderr)
         sys.exit(1)
-    dados = json.loads(sys.argv[1])
+    dados = carregar_dados(sys.argv[1])
     gerar(dados)

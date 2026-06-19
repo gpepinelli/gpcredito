@@ -2,11 +2,14 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
+const fs = require('fs');
 const routes = require('./routes');
 const { iniciarJobs } = require('./jobs/cobrancaJob');
 const whatsapp = require('./integrations/whatsapp');
 const logger = require('./utils/logger');
+const prisma = require('./lib/prisma');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,6 +17,8 @@ const CORS_ORIGIN = (process.env.CORS_ORIGIN || 'http://localhost:5173')
   .split(',')
   .map(origin => origin.trim())
   .filter(Boolean);
+
+app.set('trust proxy', 1);
 
 function sanitizarBody(body) {
   if (!body || typeof body !== 'object') return body;
@@ -28,6 +33,11 @@ function sanitizarBody(body) {
   );
 }
 
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: false,
+}));
 app.use(cors({ origin: CORS_ORIGIN }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -35,7 +45,7 @@ app.use(express.urlencoded({ extended: true }));
 // Serve o frontend React quando compilado; usa o painel legado como fallback local.
 const FRONTEND_DIST = path.join(__dirname, '..', '..', 'frontend', 'dist');
 const FRONTEND_PUBLIC = path.join(__dirname, '..', '..', 'frontend', 'public');
-const FRONTEND_DIR = require('fs').existsSync(path.join(FRONTEND_DIST, 'index.html')) ? FRONTEND_DIST : FRONTEND_PUBLIC;
+const FRONTEND_DIR = fs.existsSync(path.join(FRONTEND_DIST, 'index.html')) ? FRONTEND_DIST : FRONTEND_PUBLIC;
 app.use(express.static(FRONTEND_DIR));
 
 app.use('/api', (req, res, next) => {
@@ -48,8 +58,32 @@ app.use('/api', (req, res, next) => {
 
 app.use('/api', routes);
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'online', versao: '2.0.0', horario: new Date().toLocaleString('pt-BR') });
+app.use('/api', (req, res) => {
+  res.status(404).json({ sucesso: false, mensagem: 'Rota API nao encontrada' });
+});
+
+app.get('/health', async (req, res) => {
+  const checks = {
+    database: 'unknown',
+    whatsapp: whatsapp.status ? whatsapp.status() : { connected: false, adapter: 'unknown' },
+    storage: fs.existsSync(path.join(__dirname, '..', '..', 'storage')) ? 'ok' : 'missing',
+  };
+
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    checks.database = 'ok';
+  } catch (error) {
+    checks.database = 'error';
+    checks.databaseError = error.message;
+  }
+
+  const saudavel = checks.database === 'ok';
+  res.status(saudavel ? 200 : 503).json({
+    status: saudavel ? 'online' : 'degradado',
+    versao: '2.0.0',
+    horario: new Date().toISOString(),
+    checks,
+  });
 });
 
 // SPA fallback

@@ -158,6 +158,8 @@ Parcelamento final: 3x de 533,33, ajustando centavos na ultima parcela.
 - Mercado Pago e opcional; webhook confirma pagamento aprovado quando configurado.
 - `PIX_AUTOMATICO_VENCIMENTO=true` com `MERCADOPAGO_ATIVO=true` faz o cron gerar Pix Mercado Pago para a proxima parcela vencida e enviar pelo WhatsApp.
 - Cada Pix automatico fica registrado em `pix_cobrancas`, vinculado a operacao/parcela e processado pelo webhook quando pago.
+- Se `MP_WEBHOOK_SECRET` ou `MERCADOPAGO_WEBHOOK_SECRET` estiver configurado, o webhook do Mercado Pago deve validar `x-signature` e rejeitar eventos invalidos.
+- Crons de cobranca, renovacao e expiracao de orcamentos nao podem executar em paralelo com uma execucao anterior ainda em andamento.
 - Textos de WhatsApp ficam em parametros operacionais e usam placeholders como `{{nome}}`, `{{valor}}`, `{{dataVencimento}}`, `{{diasAtraso}}`, `{{chavePix}}`, `{{nomePix}}` e `{{copiaCola}}`.
 
 ## 5. Orcamentos
@@ -317,9 +319,12 @@ Valor da parcela: 100,00
 - Login por senha unica de administrador.
 - Token de sessao com HMAC-SHA256.
 - Token valido pelo valor de `TOKEN_EXPIRACAO_HORAS` (padrao 8 horas).
-- Login possui rate limit.
+- Login possui rate limit persistido no banco em `login_rate_limits`, alem do limite rapido da rota.
 - Exclusoes exigem senha separada ou fallback para senha admin.
 - Senhas e tokens sao mascarados nos logs.
+- Rotas inexistentes em `/api` devem responder JSON 404, nunca o HTML do painel.
+- `/health` deve validar banco de dados, storage local e status do WhatsApp.
+- Headers HTTP de seguranca devem ser aplicados sem quebrar o painel React nem downloads de arquivos.
 
 ## 11. Arquivos e persistencia
 
@@ -336,6 +341,7 @@ Valor da parcela: 100,00
 - Pagamentos com recibo tambem devem preencher `pagamentos.caminho_pdf`.
 - A tabela `carteira_movimentacoes` registra entradas, saidas manuais e saidas automaticas por liberacao de credito.
 - O sistema nunca deve sobrescrever PDF existente; quando necessario, adiciona sufixo numerico.
+- Geradores Python de contrato, orcamento e recibo devem receber dados por arquivo temporario, mantendo compatibilidade com JSON direto apenas como fallback.
 
 ## 12. Configuracoes operacionais
 

@@ -30,6 +30,11 @@ function calcularJurosRecebidoPagamento(pagamento) {
   return Math.max(0, valorPago - principalProporcional);
 }
 
+function erroNumeracaoDuplicada(error) {
+  return error?.code === 'P2002'
+    && String(error?.meta?.target || '').includes('numero_');
+}
+
 async function gerarNumero(prefixo, campo) {
   const ano = new Date().getFullYear();
   const inicio = `${prefixo}-${ano}-`;
@@ -101,47 +106,63 @@ class EmprestimoService {
     const dataVencimento = totalParcelasNumerico === 1
       ? calcularDataVencimento(diasVencimentoNumerico)
       : parcelas[parcelas.length - 1].dataVencimento;
-    const numeroOperacao = await gerarNumero('OP', 'numeroOperacao');
-    const numeroContrato = await gerarNumero('CT', 'numeroContrato');
-    const caminhoContrato = contratoService.caminhoRelativoContrato(cliente, numeroOperacao);
+    let numeroOperacao;
+    let numeroContrato;
+    let emprestimo;
 
-    const emprestimo = await prisma.emprestimo.create({
-      data: {
-        clienteId,
-        numeroOperacao,
-        numeroContrato,
-        valor: valorNumerico,
-        juros: jurosNumerico,
-        valorTotal,
-        dataVencimento,
-        totalParcelas: totalParcelasNumerico,
-        status: 'pendente',
-        statusOperacao: 'AGUARDANDO_ACEITE',
-        parcelas: totalParcelasNumerico > 1 ? {
-          create: parcelas.map(p => ({
-            numero: p.numero,
-            valor: p.valor,
-            amortizacao: p.amortizacao,
-            valorJuros: p.valorJuros,
-            saldoAntes: p.saldoAntes,
-            saldoDepois: p.saldoDepois,
-            dataVencimento: p.dataVencimento,
-            status: 'pendente',
-          })),
-        } : undefined,
-        contratos: {
-          create: {
-            numeroContrato,
-            numeroOperacao,
+    for (let tentativa = 1; tentativa <= 3; tentativa++) {
+      numeroOperacao = await gerarNumero('OP', 'numeroOperacao');
+      numeroContrato = await gerarNumero('CT', 'numeroContrato');
+      const caminhoContrato = contratoService.caminhoRelativoContrato(cliente, numeroOperacao);
+
+      try {
+        emprestimo = await prisma.emprestimo.create({
+          data: {
             clienteId,
-            caminhoArquivo: caminhoContrato,
-            hashSha256: '',
-            statusContrato: 'GERADO',
+            numeroOperacao,
+            numeroContrato,
+            valor: valorNumerico,
+            juros: jurosNumerico,
+            valorTotal,
+            dataVencimento,
+            totalParcelas: totalParcelasNumerico,
+            status: 'pendente',
+            statusOperacao: 'AGUARDANDO_ACEITE',
+            parcelas: totalParcelasNumerico > 1 ? {
+              create: parcelas.map(p => ({
+                numero: p.numero,
+                valor: p.valor,
+                amortizacao: p.amortizacao,
+                valorJuros: p.valorJuros,
+                saldoAntes: p.saldoAntes,
+                saldoDepois: p.saldoDepois,
+                dataVencimento: p.dataVencimento,
+                status: 'pendente',
+              })),
+            } : undefined,
+            contratos: {
+              create: {
+                numeroContrato,
+                numeroOperacao,
+                clienteId,
+                caminhoArquivo: caminhoContrato,
+                hashSha256: '',
+                statusContrato: 'GERADO',
+              },
+            },
           },
-        },
-      },
-      include: { parcelas: true, contratos: true },
-    });
+          include: { parcelas: true, contratos: true },
+        });
+        break;
+      } catch (error) {
+        if (tentativa < 3 && erroNumeracaoDuplicada(error)) {
+          logger.warn('Numeracao duplicada ao criar operacao, tentando novamente', { tentativa, clienteId });
+          await new Promise(resolve => setTimeout(resolve, tentativa * 80));
+          continue;
+        }
+        throw error;
+      }
+    }
 
     let contratoEnviado = false;
     try {

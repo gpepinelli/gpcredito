@@ -12,11 +12,31 @@ const pixCobrancaService = require('../services/pixCobrancaService');
 const config = require('../services/configuracaoService');
 const logger = require('../utils/logger');
 
+const locks = {
+  vencimentos: false,
+  renovacoes: false,
+  orcamentos: false,
+};
+
+async function executarComLock(chave, descricao, tarefa) {
+  if (locks[chave]) {
+    logger.warn(`[CRON] ${descricao} ignorado: execucao anterior ainda em andamento`);
+    return null;
+  }
+
+  locks[chave] = true;
+  try {
+    return await tarefa();
+  } finally {
+    locks[chave] = false;
+  }
+}
+
 /**
  * Verifica empréstimos pendentes e atrasados
  * Roda todo dia às 9h da manhã
  */
-async function verificarVencimentos() {
+async function verificarVencimentosInterno() {
   logger.info('⏰ [CRON] Iniciando verificação de vencimentos...');
 
   const hoje = new Date();
@@ -101,7 +121,7 @@ async function verificarVencimentos() {
   logger.info('✅ [CRON] Verificação concluída', { lembretes, pixEnviados, cobrancasAtraso, marcadosAtrasados, total: emprestimos.length });
 }
 
-async function verificarRenovacoes() {
+async function verificarRenovacoesInterno() {
   logger.info('[CRON] Iniciando verificacao de renovacoes...');
   try {
     const resultado = await emprestimoService.processarRenovacoesPendentes();
@@ -111,13 +131,17 @@ async function verificarRenovacoes() {
   }
 }
 
-async function expirarOrcamentos() {
+async function expirarOrcamentosInterno() {
   try {
     await orcamentoService.expirarPendentes();
   } catch (error) {
     logger.error('Erro ao expirar orcamentos', { error: error.message });
   }
 }
+
+const verificarVencimentos = () => executarComLock('vencimentos', 'Verificacao de vencimentos', verificarVencimentosInterno);
+const verificarRenovacoes = () => executarComLock('renovacoes', 'Verificacao de renovacoes', verificarRenovacoesInterno);
+const expirarOrcamentos = () => executarComLock('orcamentos', 'Expiracao de orcamentos', expirarOrcamentosInterno);
 
 function cronExpression(hora = '09:00') {
   const [hh, mm] = String(hora).split(':').map(Number);

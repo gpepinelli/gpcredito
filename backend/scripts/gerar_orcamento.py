@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import datetime
 import json
+import os
 import sys
 
 from reportlab.lib import colors
@@ -19,8 +20,15 @@ def data_br(valor):
     return dt.strftime("%d/%m/%Y")
 
 
+def carregar_dados(argumento):
+    if os.path.exists(argumento):
+        with open(argumento, "r", encoding="utf-8") as arquivo:
+            return json.load(arquivo)
+    return json.loads(argumento)
+
+
 def main():
-    dados = json.loads(sys.argv[1])
+    dados = carregar_dados(sys.argv[1])
     caminho = dados["caminhoSaida"]
     styles = getSampleStyleSheet()
     titulo = ParagraphStyle("Titulo", parent=styles["Title"], fontName="Helvetica-Bold", fontSize=17, textColor=colors.HexColor("#0f172a"))

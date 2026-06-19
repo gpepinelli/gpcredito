@@ -314,6 +314,17 @@ model PixCobranca {
   @@map("pix_cobrancas")
 }
 
+model LoginRateLimit {
+  id           String   @id @default(uuid())
+  chave        String   @unique
+  tentativas   Int      @default(0)
+  bloqueadoAte DateTime? @map("bloqueado_ate")
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  @@map("login_rate_limits")
+}
+
 enum StatusEmprestimo {
   pendente
   pago

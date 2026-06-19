@@ -81,11 +81,17 @@ ADMIN_PASSWORD="troque-esta-senha"
 ADMIN_DELETE_PASSWORD="troque-esta-senha-de-exclusao"
 ADMIN_TOKEN_SECRET="troque-este-segredo-longo-e-aleatorio"
 WHATSAPP_ADAPTER=mock
+MERCADOPAGO_ACCESS_TOKEN=""
+MERCADOPAGO_ATIVO=false
+PIX_AUTOMATICO_VENCIMENTO=false
+MP_WEBHOOK_SECRET=""
 PIX_CHAVE=""
 PIX_NOME=""
 ```
 
 As regras operacionais de credito, score, cobranca, vendas, Pix e sistema podem ser ajustadas na aba **Configuracoes** do painel. O `.env` continua sendo o fallback inicial e tambem guarda dados sensiveis de infraestrutura, como banco, senhas, segredo do token e credenciais externas.
+
+Para Mercado Pago em producao, configure tambem `MP_WEBHOOK_SECRET`. Sem essa chave o webhook continua aceitando eventos para manter compatibilidade, mas com a chave configurada o backend valida o `x-signature` antes de processar pagamentos.
 
 ## Banco de dados
 
@@ -309,7 +315,7 @@ Authorization: Bearer <token>
 | Metodo | Rota | Descricao |
 |---|---|---|
 | POST | `/api/auth/login` | Login do administrador |
-| GET | `/health` | Status do servidor |
+| GET | `/health` | Status do servidor, banco, storage e WhatsApp |
 
 ### Clientes
 
@@ -389,7 +395,9 @@ Authorization: Bearer <token>
 
 | Metodo | Rota | Descricao |
 |---|---|---|
-| POST | `/api/webhook/mercadopago` | Confirmacao Mercado Pago |
+| POST | `/api/webhook/mercadopago` | Confirmacao Mercado Pago; valida assinatura quando `MP_WEBHOOK_SECRET` estiver configurado |
+
+Rotas inexistentes dentro de `/api` retornam JSON 404. Isso evita que um endpoint digitado errado caia no HTML do painel.
 
 ### Admin
 
@@ -407,6 +415,15 @@ Authorization: Bearer <token>
 | PUT | `/api/configuracoes/:chave` | Atualiza uma configuracao com validacao por tipo |
 | POST | `/api/configuracoes/reset/:chave` | Remove valor salvo e restaura fallback/padrao |
 | POST | `/api/configuracoes/reset/todos` | Restaura todas as configuracoes usando senha de exclusao |
+
+## Seguranca e operacao
+
+- Login possui protecao em duas camadas: limite rapido por IP na rota e bloqueio persistido no banco em `login_rate_limits`.
+- Webhook Mercado Pago pode validar `x-signature` usando `MP_WEBHOOK_SECRET`.
+- O backend usa Helmet com politica conservadora para headers HTTP sem bloquear assets do painel.
+- Os crons de cobranca, renovacao e expiracao de orcamentos possuem lock em memoria para impedir execucoes sobrepostas.
+- Geradores Python recebem os dados por arquivo temporario, evitando JSON grande ou sensivel exposto como argumento de processo.
+- `/health` retorna 503 quando o banco falha e mostra checks de database, storage e WhatsApp.
 
 ## Validacao feita nesta revisao
 

@@ -1,16 +1,13 @@
 // src/services/contratoService.js
 // Gera contratos de empréstimo em PDF usando Python + ReportLab
 
-const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const prisma = require('../lib/prisma');
-const { promisify } = require('util');
 const logger = require('../utils/logger');
 const storageService = require('./storageService');
-
-const execFileAsync = promisify(execFile);
+const { executarPythonJson } = require('../utils/pythonRunner');
 const ROOT_DIR = path.join(__dirname, '..', '..', '..');
 
 const LEGACY_PDF_DIR = path.join(ROOT_DIR, 'contratos');
@@ -32,27 +29,6 @@ function montarParcelasContrato(emprestimo) {
     valor: emprestimo.valorTotal,
     status: 'pendente',
   }];
-}
-
-async function executarGeradorContrato(scriptPath, dados) {
-  const tentativas = process.env.PYTHON_BIN
-    ? [{ comando: process.env.PYTHON_BIN, args: [scriptPath, dados] }]
-    : [
-        { comando: 'python', args: [scriptPath, dados] },
-        { comando: 'py', args: ['-3', scriptPath, dados] },
-        { comando: 'python3', args: [scriptPath, dados] },
-      ];
-
-  let ultimoErro = null;
-  for (const tentativa of tentativas) {
-    try {
-      return await execFileAsync(tentativa.comando, tentativa.args);
-    } catch (error) {
-      ultimoErro = error;
-      if (error.code !== 'ENOENT') throw error;
-    }
-  }
-  throw ultimoErro;
 }
 
 class ContratoService {
@@ -113,7 +89,7 @@ class ContratoService {
     const scriptPath = path.join(ROOT_DIR, 'backend', 'scripts', 'gerar_contrato.py');
 
     try {
-      await executarGeradorContrato(scriptPath, dados);
+      await executarPythonJson(scriptPath, dados);
       const hashSha256 = crypto.createHash('sha256').update(fs.readFileSync(caminhoSaida)).digest('hex');
       const caminhoRelativo = path.relative(ROOT_DIR, caminhoSaida).replace(/\\/g, '/');
       await storageService.registrarPdf({
