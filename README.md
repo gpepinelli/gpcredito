@@ -109,7 +109,7 @@ Variaveis opcionais conforme uso:
 
 - Pix manual: `PIX_CHAVE`, `PIX_NOME`, `PIX_CIDADE`
 - Mercado Pago: `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_ATIVO`, `PIX_AUTOMATICO_VENCIMENTO`, `MP_WEBHOOK_SECRET`
-- Telegram interno: `TELEGRAM_ATIVO`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+- Telegram interno: `TELEGRAM_ATIVO`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_RATE_LIMIT_WINDOW_MS`, `TELEGRAM_RATE_LIMIT_MAX`
 - Python: `PYTHON_BIN`
 
 ## Banco de dados
@@ -459,14 +459,32 @@ Variaveis:
 - `TELEGRAM_ATIVO=true`
 - `TELEGRAM_BOT_TOKEN`: token gerado no BotFather
 - `TELEGRAM_CHAT_ID`: chat autorizado a usar os comandos
+- `TELEGRAM_RATE_LIMIT_WINDOW_MS`: janela de rate limit em milissegundos, padrao `10000`
+- `TELEGRAM_RATE_LIMIT_MAX`: comandos permitidos por janela, padrao `6`
 
 Comandos:
 
-- `/status`: servidor, banco, WhatsApp e saldo da carteira
-- `/hoje`: vencendo hoje, vencendo amanha e atrasados
-- `/carteira`: capital inicial, entradas, saidas e saldo
-- `/atrasados`: primeiras operacoes em atraso
+- `/status`: servidor, banco, WhatsApp, Telegram e saldo da carteira
+- `/hoje`: vencimentos, atrasos, contratos aguardando aceite, liberacoes e promessas
+- `/resumo` ou `/financeiro`: capital liberado, contratado, recebido, lucro, aberto e atraso
+- `/carteira`: capital configurado, entradas, saidas, saldo e ultimas movimentacoes
+- `/atrasados`: primeiras operacoes em atraso com saldo e dias
+- `/aging`: inadimplencia por faixa de atraso
+- `/operacoes [status]`: ultimas operacoes abertas ou filtradas por status
+- `/operacao OP-2026-000001`: detalhe de uma operacao
+- `/aceites`: contratos aguardando aceite
+- `/liberar`: operacoes aprovadas aguardando liberacao
+- `/clientes termo`: busca clientes por nome, CPF ou telefone
+- `/cliente termo`: resumo financeiro do cliente
+- `/scorebaixo`: clientes com score abaixo de 80
+- `/promessas`: promessas de pagamento pendentes
+- `/pix`: cobrancas Pix pendentes
+- `/vendas`: resumo de vendas e estoque por modulo
+- `/estoque [carro|moto|celular]`: produtos disponiveis
+- `/orcamentos`: orcamentos pendentes recentes
 - `/ajuda`: lista de comandos
+
+Por seguranca, o bot nao executa acoes destrutivas ou financeiras, como pagar parcelas, excluir registros ou liberar dinheiro. Essas operacoes continuam exclusivas do painel autenticado.
 
 ## Validacao feita nesta revisao
 

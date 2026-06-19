@@ -335,6 +335,9 @@ Valor da parcela: 100,00
 - Headers HTTP de seguranca devem ser aplicados sem quebrar o painel React nem downloads de arquivos.
 - Configuracoes desconhecidas nao podem consultar automaticamente `process.env`; somente chaves definidas em `CONFIG_MAP` usam fallback de ambiente.
 - Telegram interno e opcional, restrito a `TELEGRAM_CHAT_ID`, e deve ser usado apenas para consultas/alertas administrativos.
+- O bot do Telegram deve aplicar rate limit simples por chat para evitar flood acidental de consultas ao banco.
+- O bot pode consultar status, carteira, operacoes, clientes, score baixo, inadimplencia, Pix, orcamentos, promessas, vendas e estoque.
+- O bot nao deve executar acoes destrutivas ou financeiras sem uma camada futura de confirmacao forte; pagamentos, liberacoes, exclusoes e alteracoes continuam no painel administrativo.
 
 ## 11. Arquivos e persistencia
 
