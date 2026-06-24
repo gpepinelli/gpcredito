@@ -1,21 +1,17 @@
 // src/services/contratoService.js
 // Gera contratos de empréstimo em PDF usando Python + ReportLab
 
-const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const { PrismaClient } = require('@prisma/client');
-const { promisify } = require('util');
+const prisma = require('../lib/prisma');
 const logger = require('../utils/logger');
-
-const execFileAsync = promisify(execFile);
-const prisma = new PrismaClient();
+const storageService = require('./storageService');
+const { executarPythonJson } = require('../utils/pythonRunner');
 const ROOT_DIR = path.join(__dirname, '..', '..', '..');
 
-// Pasta onde os PDFs serão salvos temporariamente
-const PDF_DIR = path.join(ROOT_DIR, 'contratos');
-const PASTA_EMPRESTIMOS = '01 - Emprestimos';
+const LEGACY_PDF_DIR = path.join(ROOT_DIR, 'contratos');
+const STORAGE_CONTRATOS_DIR = path.join(ROOT_DIR, 'storage', 'contratos');
 
 function montarParcelasContrato(emprestimo) {
   if (Array.isArray(emprestimo.parcelas) && emprestimo.parcelas.length > 0) {
@@ -35,32 +31,9 @@ function montarParcelasContrato(emprestimo) {
   }];
 }
 
-async function executarGeradorContrato(scriptPath, dados) {
-  const tentativas = process.env.PYTHON_BIN
-    ? [{ comando: process.env.PYTHON_BIN, args: [scriptPath, dados] }]
-    : [
-        { comando: 'python', args: [scriptPath, dados] },
-        { comando: 'py', args: ['-3', scriptPath, dados] },
-        { comando: 'python3', args: [scriptPath, dados] },
-      ];
-
-  let ultimoErro = null;
-  for (const tentativa of tentativas) {
-    try {
-      return await execFileAsync(tentativa.comando, tentativa.args);
-    } catch (error) {
-      ultimoErro = error;
-      if (error.code !== 'ENOENT') throw error;
-    }
-  }
-  throw ultimoErro;
-}
-
 class ContratoService {
   constructor() {
-    if (!fs.existsSync(PDF_DIR)) {
-      fs.mkdirSync(PDF_DIR, { recursive: true });
-    }
+    fs.mkdirSync(STORAGE_CONTRATOS_DIR, { recursive: true });
   }
 
   pastaCliente(cliente) {
@@ -75,7 +48,7 @@ class ContratoService {
   }
 
   caminhoRelativoContrato(cliente, numeroOperacao) {
-    return path.join('contratos', this.pastaCliente(cliente), PASTA_EMPRESTIMOS, numeroOperacao, 'contrato.pdf').replace(/\\/g, '/');
+    return storageService.caminhoContrato(cliente, numeroOperacao);
   }
 
   /**
@@ -85,7 +58,7 @@ class ContratoService {
    * @returns {string} Caminho do arquivo PDF gerado
    */
   async gerarContrato(emprestimo, cliente) {
-    const numeroOperacao = emprestimo.numeroOperacao || `OP-01-${new Date().getFullYear()}-${emprestimo.id.slice(0, 6)}`;
+    const numeroOperacao = emprestimo.numeroOperacao || `OP-${new Date().getFullYear()}-${emprestimo.id.slice(0, 6)}`;
     const numeroContrato = emprestimo.numeroContrato || `CT-${new Date().getFullYear()}-${emprestimo.id.slice(0, 6)}`;
     const caminhoRelativoContrato = this.caminhoRelativoContrato(cliente, numeroOperacao);
     const caminhoSaida = path.join(ROOT_DIR, caminhoRelativoContrato);
@@ -116,9 +89,16 @@ class ContratoService {
     const scriptPath = path.join(ROOT_DIR, 'backend', 'scripts', 'gerar_contrato.py');
 
     try {
-      await executarGeradorContrato(scriptPath, dados);
+      await executarPythonJson(scriptPath, dados);
       const hashSha256 = crypto.createHash('sha256').update(fs.readFileSync(caminhoSaida)).digest('hex');
       const caminhoRelativo = path.relative(ROOT_DIR, caminhoSaida).replace(/\\/g, '/');
+      await storageService.registrarPdf({
+        tipo: 'CONTRATO',
+        caminhoPdf: caminhoRelativo,
+        clienteId: cliente.id,
+        origemTipo: 'Emprestimo',
+        origemId: emprestimo.id,
+      });
       await prisma.contratoOperacao.upsert({
         where: { numeroContrato },
         update: {
@@ -152,10 +132,13 @@ class ContratoService {
       const caminhoAbsoluto = path.isAbsolute(caminhoPdf)
         ? caminhoPdf
         : path.join(ROOT_DIR, caminhoPdf);
-      const pastaContratos = path.resolve(PDF_DIR);
+      const pastaContratos = path.resolve(STORAGE_CONTRATOS_DIR);
+      const pastaLegada = path.resolve(LEGACY_PDF_DIR);
       const destino = path.resolve(caminhoAbsoluto);
 
-      if (!destino.startsWith(pastaContratos + path.sep)) {
+      const dentroStorage = destino.startsWith(pastaContratos + path.sep);
+      const dentroLegado = destino.startsWith(pastaLegada + path.sep);
+      if (!dentroStorage && !dentroLegado) {
         logger.warn('Remocao de contrato ignorada fora da pasta contratos', { caminhoPdf });
         return;
       }
@@ -166,7 +149,8 @@ class ContratoService {
       }
 
       let dir = path.dirname(destino);
-      while (dir.startsWith(pastaContratos + path.sep) && dir !== pastaContratos) {
+      const raiz = dentroStorage ? pastaContratos : pastaLegada;
+      while (dir.startsWith(raiz + path.sep) && dir !== raiz) {
         if (!fs.existsSync(dir) || fs.readdirSync(dir).length > 0) break;
         fs.rmdirSync(dir);
         dir = path.dirname(dir);

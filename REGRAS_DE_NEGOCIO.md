@@ -1,271 +1,437 @@
-# Regras de Negócio — GPCrédito
+# Regras de Negocio - GPCredito V2
 
-Este documento descreve todas as regras de negócio do sistema de empréstimos.
+Este documento e a referencia funcional do sistema. Quando houver divergencia entre documentacao e codigo, esta regra deve ser atualizada junto com a implementacao.
 
----
+## 1. Clientes
 
-## 1. CLIENTES
+### Cadastro
 
-### 1.1 Cadastro
-- Cada cliente é identificado pelo **telefone**, que deve ser único no sistema.
-- O telefone deve conter apenas dígitos, espaços, hífens, parênteses ou `+`.
-- Todo cliente começa com **score de crédito 100**.
-- Não há limite de clientes cadastrados.
+- Cliente deve ter nome, telefone, CPF e endereco.
+- Telefone deve ser unico.
+- CPF e opcional no banco, mas o formulario principal da V2 exige CPF e valida no backend.
+- CPF e salvo somente com numeros.
+- Score inicial do cliente vem de `SCORE_INICIAL` (padrao 100).
+- Documentos sao opcionais:
+  - RG frente
+  - RG verso
+  - comprovante de residencia
+- Upload aceito segue `UPLOAD_TIPOS_PERMITIDOS` e `UPLOAD_TAMANHO_MAXIMO_MB` (padrao JPG, PNG ou PDF, ate 5MB).
+- Upload de documento deve validar extensao, mimetype e assinatura real do arquivo:
+  - PDF deve iniciar com `%PDF-`
+  - PNG deve conter assinatura PNG
+  - JPG deve conter assinatura JPEG
 
-### 1.2 Exclusão
-- A exclusão de um cliente remove **todos os seus dados** vinculados: empréstimos, parcelas, pagamentos e histórico de score.
-- Requer a **senha de exclusão** (`ADMIN_DELETE_PASSWORD`) para ser executada.
-- Operação irreversível.
+### Exclusao
 
----
+- Excluir cliente exige `ADMIN_DELETE_PASSWORD`.
+- A exclusao remove dados vinculados:
+  - emprestimos
+  - parcelas
+  - pagamentos
+  - contratos
+  - documentos
+  - historico de score
+  - vendas vinculadas ao cliente
+- Arquivos fisicos de documentos e contratos tambem devem ser removidos quando possivel.
+- Operacao irreversivel.
 
-## 2. SCORE DE CRÉDITO
+## 2. Score de credito
 
-### 2.1 Escala
-| Faixa | Status | Efeito |
-|-------|--------|--------|
-| 80 – 200 | ✅ Confiável | Crédito liberado |
-| 50 – 79  | ⚠️ Risco médio | Crédito liberado com cautela |
-| 0 – 49   | 🚫 Bloqueado | Não pode tomar novo empréstimo |
+### Faixas
 
-- Score máximo: **200**
-- Score mínimo: **0** (não vai abaixo de zero)
-- Score inicial de todo cliente: **100**
+| Score | Nivel | Regra |
+|---|---|---|
+| `SCORE_LIMITE_RISCO_MEDIO` ate `SCORE_MAXIMO` | Confiavel | Credito liberado |
+| `SCORE_LIMITE_BLOQUEADO` ate abaixo de `SCORE_LIMITE_RISCO_MEDIO` | Risco medio | Credito liberado com alerta |
+| Abaixo de `SCORE_LIMITE_BLOQUEADO` | Bloqueado | Novo credito negado |
 
-### 2.2 Alterações automáticas
-| Evento | Alteração |
-|--------|-----------|
-| Pagamento antecipado (antes do vencimento) | **+15 pontos** |
-| Pagamento em dia | **+10 pontos** |
-| Atraso de até 3 dias | **−10 pontos** |
-| Atraso de 4 a 7 dias | **−15 pontos** |
-| Atraso acima de 7 dias | **−25 pontos** |
-| Inadimplência confirmada (8+ dias em atraso) | **−50 pontos** |
+### Alteracoes
 
-> A penalidade de inadimplência (−50) é aplicada **uma única vez**, no 8º dia de atraso, pelo cron job.
+| Evento | Alteracao |
+|---|---|
+| Pagamento antecipado | `SCORE_PAGAMENTO_ANTECIPADO` |
+| Pagamento em dia | `SCORE_PAGAMENTO_EM_DIA` |
+| Atraso ate 3 dias | `SCORE_ATRASO_ATE_3_DIAS` |
+| Atraso de 4 a 7 dias | `SCORE_ATRASO_4_A_7_DIAS` |
+| Atraso acima de 7 dias | `SCORE_ATRASO_ACIMA_7_DIAS` |
+| Inadimplencia com atraso configurado | `SCORE_PENALIDADE_INADIMPLENCIA` |
 
-### 2.3 Regras de concessão
-- Cliente com score **< 50** não pode receber novo empréstimo, mesmo que quite a dívida anterior.
-- O score só melhora com pagamentos. Para sair do bloqueio, o cliente precisa pagar dívidas ativas e acumular pontos até atingir 50+.
+- Score minimo vem de `SCORE_MINIMO`.
+- Score maximo vem de `SCORE_MAXIMO`.
+- Penalidade de inadimplencia e aplicada uma unica vez por operacao, usando flag no emprestimo.
+- O painel deve exibir score com indicador visual:
+  - verde/confiavel para 80+
+  - amarelo/risco medio para 50 a 79
+  - vermelho/bloqueado para 0 a 49
+- O detalhe do cliente deve mostrar historico de alteracoes de score com motivo, data e score resultante.
 
----
+## 3. Credito
 
-## 3. EMPRÉSTIMOS
+### Criacao
 
-### 3.1 Criação
-- Por padrão, um cliente só pode ter **uma operação financeira ativa** por vez.
-- A regra pode ser alterada pela configuração `ALLOW_MULTIPLE_ACTIVE_OPERATIONS`.
-- Status considerados em aberto: `AGUARDANDO_ACEITE`, `APROVADO`, `LIBERADO`, `EM_DIA`, `ATRASADO`.
-- Status finalizados: `QUITADO`, `CANCELADO`, `RECUSADO`.
-- Valor mínimo: **R$ 10,00**.
-- Juros: de **0% a 100% ao mês**.
-- Prazo padrão: **30 dias** (para empréstimo de parcela única).
-- O Pix **não é gerado no momento da criação** — é gerado pelo cron job no dia do vencimento.
-- Ao criar a operação, o sistema gera o contrato PDF e tenta enviar pelo WhatsApp ao cliente.
-- A operação nasce com status `AGUARDANDO_ACEITE`.
-- Se o cliente responder pelo WhatsApp cadastrado com `DE ACORDO`, `CONCORDO` ou `SIM`, o contrato é marcado como `ACEITO`.
-- Após o aceite digital, a operação muda para `APROVADO`, indicando que está pronta para liberação financeira pelo credor.
-- O dinheiro só deve ser liberado após o contrato estar `ACEITO`.
+- Valor minimo vem de `VALOR_MINIMO_EMPRESTIMO` (padrao R$ 10,00).
+- Valor maximo vem de `VALOR_MAXIMO_EMPRESTIMO`.
+- Juros permitido segue `JUROS_MINIMO` e `JUROS_MAXIMO` (padrao 0% a 100%).
+- Juros pre-preenchido no formulario vem de `JUROS_PADRAO`.
+- Numero de parcelas segue `PARCELAS_MINIMAS` e `PARCELAS_MAXIMAS` (padrao 1 a 60).
+- Intervalo entre parcelas vem de `INTERVALO_PARCELAS_DIAS` (padrao 30 dias).
+- Primeiro vencimento vem de `DIAS_PRIMEIRO_VENCIMENTO`.
+- Por padrao, cliente nao pode ter mais de uma operacao ativa.
+- `ALLOW_MULTIPLE_ACTIVE_OPERATIONS=true` permite multiplas operacoes ativas.
+- Status ativos:
+  - `AGUARDANDO_ACEITE`
+  - `APROVADO`
+  - `LIBERADO`
+  - `EM_DIA`
+  - `ATRASADO`
+- Status finais:
+  - `QUITADO`
+  - `CANCELADO`
+  - `RECUSADO`
 
-### 3.2 Cálculo do valor total
-```
-Para parcela única:
-Valor Total = Valor Principal + Juros sobre o principal
+### Numeracao
 
-Para empréstimo parcelado:
-O juros de cada parcela é calculado sobre o saldo devedor atual.
-```
+- Operacao: `OP-ANO-SEQUENCIAL`, exemplo `OP-2026-000001`.
+- Contrato: `CT-ANO-SEQUENCIAL`.
+- O sequencial e controlado pela tabela `numeracoes_sequenciais` com incremento atomico no banco, separado por prefixo e ano.
+- Nao usar busca do ultimo emprestimo para gerar o proximo numero, pois isso causa disputa em criacoes simultaneas.
 
-### 3.3 Status possíveis
-| Status | Significado |
-|--------|-------------|
-| `pendente` | Empréstimo ativo, dentro do prazo |
-| `pago` | Totalmente quitado |
-| `atrasado` | Passou da data de vencimento sem pagamento |
+### Contrato e aceite
 
-### 3.4 Status da operação financeira
-| Status | Significado |
-|--------|-------------|
-| `AGUARDANDO_ACEITE` | Contrato enviado/gerado e aguardando aceite do cliente |
-| `APROVADO` | Cliente aceitou o contrato; operação pronta para liberação do dinheiro |
-| `LIBERADO` | Dinheiro liberado ao cliente |
-| `EM_DIA` | Operação ativa e em acompanhamento |
-| `ATRASADO` | Operação com atraso |
-| `QUITADO` | Operação quitada |
-| `CANCELADO` | Operação cancelada |
-| `RECUSADO` | Operação recusada |
+- Ao criar uma operacao, o sistema gera contrato PDF.
+- O contrato fica em `storage/contratos/{nome-cliente}/emprestimos/{numeroOperacao}/contrato.pdf`.
+- Contratos antigos em `contratos/` continuam sendo reconhecidos para remocao e compatibilidade.
+- Operacao nasce como `AGUARDANDO_ACEITE`.
+- Aceite pode ocorrer por WhatsApp ou manualmente no painel.
+- Apos aceite, status muda para `APROVADO`.
+- Apos entrega do dinheiro, admin marca como `LIBERADO`.
 
-### 3.5 Pagamento
-- O pagamento pode ser registrado **manualmente** pelo painel (campo "Valor pago").
-- Ou **automaticamente** via webhook do Mercado Pago após confirmação do Pix.
-- Ao confirmar o pagamento, o score do cliente é atualizado automaticamente.
-- Após a quitação total, o sistema não envia renovação imediatamente.
-- A oferta de renovação só pode ser enviada **15 dias após a quitação do contrato**.
-- A oferta só é enviada se o cliente **não tiver pegado nova operação financeira** após a quitação.
-- A oferta de renovação é enviada apenas uma vez por operação quitada.
+### Calculo de juros do credito
 
----
+Credito parcelado usa parcela fixa pelo total SAC. O sistema calcula primeiro o total pela regra de juros sobre saldo devedor e depois divide esse total em parcelas iguais.
 
-## 4. EMPRÉSTIMOS PARCELADOS
-
-### 4.1 Como funciona
-- O administrador escolhe o número de parcelas (1 a 60) ao criar o empréstimo.
-- Intervalo fixo de **30 dias** entre parcelas.
-- O principal é amortizado mensalmente.
-- O juros de cada parcela é calculado apenas sobre o **saldo devedor atual**.
-- A cada parcela paga, a amortização abate o saldo principal.
-- O sistema não calcula juros sobre o valor original em todas as parcelas.
-- O sistema não usa juros fixo total dividido igualmente.
-- Diferenças de centavos são ajustadas na **última parcela**.
-
-### 4.2 Exemplo
-```
-Empréstimo: R$ 1.000 | Juros: 10% | 3 parcelas
-Amortização base: R$ 333,33 por parcela
-Parcela 1: juros sobre R$ 1.000,00
-Parcela 2: juros sobre R$ 666,67
-Parcela 3: juros sobre R$ 333,34
+```text
+amortizacao = principal / parcelas
+juros da parcela = saldo devedor atual * percentual
+total calculado = soma(amortizacao + juros da parcela)
+valor da parcela fixa = total calculado / parcelas
+saldo devedor novo = saldo devedor atual - amortizacao
 ```
 
-### 4.3 Status das parcelas
-| Status | Significado |
-|--------|-------------|
-| `pendente` | Aguardando pagamento |
-| `pago` | Parcela quitada |
-| `atrasado` | Passou do vencimento |
+Exemplo com R$ 1.000,00, 30%, 3 parcelas:
 
-### 4.4 Regras de pagamento parcelado
-- Ao registrar um pagamento de parcela, o sistema liquida apenas a **parcela selecionada**.
-- O empréstimo só muda para `pago` quando **todas as parcelas** forem quitadas.
-- Enquanto houver parcelas pendentes, o status do empréstimo permanece `pendente`.
-- Score é atualizado apenas na **quitação total** do empréstimo.
-
----
-
-## 5. COBRANÇAS AUTOMÁTICAS (CRON JOB)
-
-O sistema executa verificações automáticas **todos os dias às 09h00 e 18h00** (horário de Brasília).
-As ofertas de renovação são verificadas diariamente às **09h30**.
-
-### 5.1 Fluxo de cobranças
-| Situação | Ação |
-|----------|------|
-| Vence amanhã | Envia lembrete via WhatsApp |
-| Vence hoje | Gera Pix + envia código copia e cola |
-| Atrasado (qualquer dia) | Envia cobrança firme via WhatsApp |
-| 8+ dias atrasado | Aplica −50 no score (inadimplência) |
-| Passou de `pendente` p/ atraso | Atualiza status para `atrasado` |
-| Contrato quitado há 15 dias e sem nova operação | Envia oferta de renovação |
-
-### 5.2 Envio do Pix
-- O Pix é gerado **no dia do vencimento**, não antes.
-- São enviadas **duas mensagens** no WhatsApp:
-  1. Aviso de vencimento com instruções.
-  2. Apenas o código copia e cola (para facilitar a cópia).
-- Intervalo de 3 segundos entre as mensagens.
-- O Pix não é gerado novamente se já existir `pixPaymentId`.
-
----
-
-## 6. INTEGRAÇÃO MERCADO PAGO
-
-- O Pix é gerado via API do Mercado Pago.
-- O webhook em `/api/webhook/mercadopago` recebe notificações de pagamento aprovado.
-- O sistema confirma o pagamento automaticamente ao receber o webhook com `status: approved`.
-- Em modo simulado (sem token configurado), o Pix é gerado localmente com dados fictícios.
-- Pagamentos duplicados (mesmo `pixPaymentId`) são ignorados.
-
----
-
-## 7. INTEGRAÇÃO WHATSAPP
-
-- Utiliza a biblioteca **Baileys** (conexão via QR code, sem custo de API).
-- Modo padrão: **mock** (mensagens aparecem no terminal — útil para desenvolvimento).
-- Para ativar o WhatsApp real: `WHATSAPP_ADAPTER=baileys` no `.env`.
-- Mensagens que chegam enquanto o WhatsApp está desconectado são enfileiradas e enviadas na reconexão.
-
-### 7.1 Templates de mensagens
-| Gatilho | Mensagem |
-|---------|----------|
-| Vence amanhã | Lembrete de pagamento |
-| Vence hoje | Aviso + código Pix (2 msgs) |
-| Atrasado | Cobrança urgente com dias de atraso |
-| Pagamento confirmado | Confirmação + agradecimento |
-| Renovação (15 dias após quitação, se não houver nova operação) | Oferta de novo empréstimo |
-
----
-
-## 8. RELATÓRIOS
-
-### 8.1 Relatório mensal
-- Agrupa empréstimos por **mês de criação**.
-- Exibe por mês: quantidade criada, valor total emprestado, valor recebido em pagamentos e lucro.
-
-### 8.2 Exportação Excel
-- Gera planilha com 3 abas:
-  - **Empréstimos**: todos os registros com cliente, valor, juros, status, parcelas.
-  - **Clientes**: cadastro completo com score e quantidade de empréstimos.
-  - **Pagamentos**: histórico de pagamentos confirmados.
-
----
-
-## 9. AUTENTICAÇÃO E SEGURANÇA
-
-### 9.1 Login
-- Acesso via senha única de administrador (`ADMIN_PASSWORD`).
-- Proteção contra força bruta: bloqueio após **5 tentativas** erradas em 15 minutos.
-- Token de sessão válido por **8 horas**.
-- Token usa HMAC-SHA256 com o `ADMIN_TOKEN_SECRET` como chave.
-
-### 9.2 Senhas
-- `ADMIN_PASSWORD` — acesso ao painel.
-- `ADMIN_DELETE_PASSWORD` — necessária para excluir clientes ou empréstimos (pode ser diferente da senha principal).
-- `ADMIN_TOKEN_SECRET` — segredo para assinar tokens JWT internos.
-- Todas as comparações de senha usam `timingSafeEqual` para evitar timing attacks.
-
-### 9.3 Dados sensíveis
-- Senhas e tokens são **redactados** (`[REDACTED]`) nos logs automaticamente.
-- O webhook do Mercado Pago é público (sem autenticação), pois precisa ser acessível externamente.
-
----
-
-## 10. LOGS
-
-- Todos os eventos relevantes são registrados em `logs/sistema.log`.
-- Erros críticos em `logs/erros.log`.
-- Dados sensíveis (senhas, tokens) são removidos antes de logar.
-- Formato: JSON estruturado com timestamp, nível e dados do evento.
-
----
-
-## 11. GERAÇÃO DE CONTRATOS (PDF)
-
-- Requer **Python 3 + ReportLab** instalados no servidor.
-- O PDF é gerado pelo script `backend/scripts/gerar_contrato.py`.
-- Após gerado, o PDF é enviado ao cliente via WhatsApp.
-- Os contratos ficam em `contratos/{Nome_Cliente}/01 - Emprestimos/{numeroOperacao}/contrato.pdf`.
-- Para V2, a pasta do cliente poderá receber novas categorias numeradas para compra de moto, carro e celular.
-
----
-
-## 12. FLUXO COMPLETO — DO CADASTRO AO PAGAMENTO
-
-```
-1. Admin cadastra o cliente (nome + telefone)
-2. Sistema atribui score inicial: 100
-3. Admin cria empréstimo (valor, juros, parcelas, prazo)
-4. Sistema valida: score OK? empréstimo ativo? valor mínimo?
-5. Empréstimo criado com status "pendente"
-6. Cron job: vence amanhã → envia lembrete WhatsApp
-7. Cron job: vence hoje → gera Pix + envia via WhatsApp
-8. Cliente paga via Pix → webhook MP confirma
-   OU admin registra pagamento manual no painel
-9. Sistema marca parcela como "paga" (se parcelado)
-10. Se todas as parcelas pagas → empréstimo = "pago"
-11. Score do cliente é atualizado conforme pontualidade
-12. Após 15 dias da quitação, se não houver nova operação, o sistema envia oferta de renovação
+```text
+Calculo base SAC:
+Parcela 1: saldo 1000,00 -> juros 300,00 -> base 633,33
+Parcela 2: saldo 666,67 -> juros 200,00 -> base 533,33
+Parcela 3: saldo 333,34 -> juros 100,00 -> base 433,34
+Total calculado: 1600,00
+Parcelamento final: 3x de 533,33, ajustando centavos na ultima parcela.
 ```
 
----
+- A ultima amortizacao ajusta diferenca de centavos para zerar saldo.
+- A ultima parcela fixa ajusta diferenca de centavos para fechar o total calculado.
+- Credito nao usa juros normal sobre valor total. Essa regra e somente para vendas.
 
-*Documento gerado automaticamente — GPCrédito v1.0*
+### Pagamentos
+
+- Pagamento manual pode quitar valor parcial ou total.
+- Pagamento de parcela liquida a parcela selecionada.
+- Botao "Pagar prox." paga a proxima parcela pendente.
+- Emprestimo so vira `pago` e operacao so vira `QUITADO` quando quitado totalmente.
+- Se uma operacao atrasada receber pagamento parcial, continua `ATRASADO` ate quitar ou ser regularizada por regra futura.
+- Todo pagamento confirmado gera recibo PDF em `storage/recibos/{nome-cliente}/recibo-{parcela-id-ou-pagamento-id}.pdf`.
+- O recibo fica vinculado em `pagamentos.caminho_pdf`, registrado em `arquivos_pdf` com tipo `RECIBO` e pode ser enviado automaticamente pelo WhatsApp.
+- Recibo confirmado pode ser reenviado pelo painel.
+- Promessa de pagamento registra valor, data combinada, observacao e status (`PENDENTE`, `CUMPRIDA`, `NAO_CUMPRIDA`, `CANCELADA`).
+- Score e alterado na quitacao total, conforme atraso no vencimento final.
+- Renegociacao de prazo altera o vencimento, registra log administrativo e retorna a operacao para `EM_DIA`.
+- Cobranca WhatsApp em lote pode ser disparada manualmente para operacoes selecionadas.
+
+## 4. Cobrancas e Pix
+
+- Cron roda nos horarios configurados em `COBRANCA_HORA_MANHA` e `COBRANCA_HORA_TARDE` (padrao 09:00 e 18:00).
+- Renovacoes sao verificadas em `RENOVACAO_HORA` (padrao 09:30).
+- O timezone dos crons vem de `TIMEZONE` (padrao America/Sao_Paulo).
+- Vence amanha: envia lembrete.
+- Vence hoje: envia cobranca/Pix.
+- Atrasado: envia cobranca de atraso.
+- A partir de `DIAS_INADIMPLENCIA_PENALIDADE` dias de atraso, aplica penalidade de inadimplencia uma vez.
+- O painel permite reenviar Pix manualmente.
+- Reenvio de Pix deve retornar erro claro se a chave Pix nao estiver configurada ou se o WhatsApp falhar.
+- O painel exibe status do adaptador WhatsApp e mensagens na fila.
+- Se `PIX_CHAVE` estiver configurada, o sistema envia Pix manual.
+- Mercado Pago e opcional; webhook confirma pagamento aprovado quando configurado.
+- `PIX_AUTOMATICO_VENCIMENTO=true` com `MERCADOPAGO_ATIVO=true` faz o cron gerar Pix Mercado Pago para a proxima parcela vencida e enviar pelo WhatsApp.
+- Cada Pix automatico fica registrado em `pix_cobrancas`, vinculado a operacao/parcela e processado pelo webhook quando pago.
+- Se `MP_WEBHOOK_SECRET` ou `MERCADOPAGO_WEBHOOK_SECRET` estiver configurado, o webhook do Mercado Pago deve validar `x-signature` e rejeitar eventos invalidos.
+- Crons de cobranca, renovacao e expiracao de orcamentos nao podem executar em paralelo com uma execucao anterior ainda em andamento.
+- Textos de WhatsApp ficam em parametros operacionais e usam placeholders como `{{nome}}`, `{{valor}}`, `{{dataVencimento}}`, `{{diasAtraso}}`, `{{chavePix}}`, `{{nomePix}}` e `{{copiaCola}}`.
+
+## 5. Orcamentos
+
+- Orcamento e simulacao, nao contrato.
+- Pode ser gerado com cliente existente ou sem cliente vinculado.
+- Usa a mesma funcao de calculo de parcelas do credito.
+- O PDF deve conter:
+  - nome da empresa
+  - data de emissao
+  - validade de 24 horas
+  - dados do cliente quando informado
+  - tabela completa de parcelas
+  - aviso de que e simulacao e nao contrato
+  - rodape com nome do sistema
+- PDFs de orcamento ficam em `storage/orcamentos/{nome-cliente}/orcamento-{id}.pdf`.
+- Status possiveis:
+  - `PENDENTE`
+  - `CONVERTIDO`
+  - `EXPIRADO`
+- Orcamentos pendentes vencidos devem ser deletados automaticamente apos 24 horas.
+- Ao deletar um orcamento vencido, o sistema tambem remove o PDF e o registro correspondente em `arquivos_pdf`.
+- Orcamento pendente pode ser reaberto, reenviado pelo WhatsApp ou convertido em operacao.
+- Orcamento pode ser excluido manualmente com senha de exclusao; a exclusao remove o PDF e o registro em `arquivos_pdf`.
+- Converter orcamento preenche a tela de nova operacao com cliente, valor, juros, parcelas e vencimento.
+
+## 6. Renovacao
+
+- A oferta de renovacao so pode ser enviada apos `RENOVACAO_DIAS_APOS_QUITACAO` dias da quitacao (padrao 15).
+- A oferta nao e enviada se o cliente ja tiver nova operacao apos a quitacao.
+- Cada operacao quitada recebe oferta no maximo uma vez.
+
+## 7. Vendas de carros, motos e celulares
+
+### Cadastro de produtos
+
+Cada modulo possui cadastro proprio:
+
+- Carros: placa ou chassi.
+- Motos: placa ou chassi.
+- Celulares: IMEI ou numero de serie.
+
+Campos comuns:
+
+- tipo
+- titulo
+- marca
+- modelo
+- ano
+- identificador unico
+- valor de custo
+- valor base de venda
+- status
+
+### Regra de juros de venda
+
+Vendas usam juros normal sobre o valor base. O percentual vem de `JUROS_VENDA_PADRAO` (padrao 30%).
+
+```text
+total com juros = valor base * 1,30
+saldo parcelado = total com juros - entrada
+valor da parcela = saldo parcelado / parcelas
+```
+
+Exemplo:
+
+```text
+Valor base: 1000,00
+Juros normal: 30%
+Total com juros: 1300,00
+Entrada: 300,00
+Parcelas: 10
+Valor da parcela: 100,00
+```
+
+- Essa regra nao se aplica ao credito.
+- Venda grava:
+  - valor base
+  - percentual de juros
+  - total com juros
+  - entrada
+  - numero de parcelas
+  - valor da parcela
+  - observacao
+
+### Cancelamento e exclusao
+
+- Venda concluida pode ser cancelada; produto volta para `DISPONIVEL`.
+- Produto so pode ser excluido se nao tiver venda concluida vinculada.
+- Excluir produto exige senha de exclusao.
+
+## 8. Relatorios
+
+### Credito
+
+- Resumo financeiro total.
+- Relatorio mensal.
+- Exportacao de emprestimos, clientes e pagamentos.
+- Inadimplentes.
+- Aging de inadimplencia por faixas: 1-7, 8-15, 16-30 e 30+ dias.
+
+### Vendas
+
+- Faturamento.
+- Lucro estimado.
+- Vendas concluidas.
+- Ticket medio.
+- Resultado por tipo: carro, moto e celular.
+- Exportacao CSV.
+
+## 9. Painel operacional
+
+- Busca global por cliente ou operacao.
+- Clientes possuem paginacao e busca server-side.
+- Aba ativa e filtros de credito sao salvos no navegador.
+- A interface deve ser responsiva:
+  - no mobile, sidebar vira menu lateral acionado por botao
+  - listagens principais viram cards com rotulos por campo
+  - modais ocupam a largura util do celular
+- Clientes, credito e relatorio de vendas devem permitir ordenacao clicavel por colunas principais.
+- Configuracoes operacionais ficam na aba Configuracoes e sao salvas no banco.
+- Ordem de fallback de qualquer chave operacional: banco -> `.env` -> padrao de fabrica.
+- Configuracoes possuem tipo (`STRING`, `NUMBER`, `BOOLEAN`, `TIME`), categoria, descricao e obrigatoriedade.
+- Valores numericos e horarios devem ser validados antes de salvar.
+- O backend usa cache em memoria com TTL de 5 minutos para leitura de configuracoes.
+- Cada parametro pode ser salvo ou restaurado individualmente.
+- Restaurar todos os padroes exige senha de exclusao.
+- Configuracoes sensiveis de infraestrutura continuam no `.env`:
+  - banco de dados
+  - senha admin
+  - senha de exclusao
+  - segredo do token
+  - adaptador/credenciais externas do WhatsApp
+- "Agenda do Dia" agrupa:
+  - vencendo hoje
+  - atrasados
+  - aguardando aceite
+  - aprovados para liberar
+- O painel financeiro deve mostrar o capital aprovado e pronto para liberar, somando o principal das operacoes com `statusOperacao = APROVADO`.
+- A carteira operacional e manual, vem de `CARTEIRA_OPERACIONAL` e representa o capital proprio reservado pelo admin para operar.
+- Entradas e saidas manuais de carteira ficam registradas em `carteira_movimentacoes`.
+- Ao liberar uma operacao aprovada, o valor principal do emprestimo e debitado automaticamente da carteira uma unica vez.
+- Operacoes antigas ja liberadas, em dia, atrasadas ou quitadas sem movimentacao vinculada devem ser sincronizadas automaticamente como saida da carteira.
+- O saldo atual da carteira e calculado como `CARTEIRA_OPERACIONAL + entradas - saidas - creditos liberados`.
+- O saldo apos liberacoes considera tambem operacoes aprovadas ainda nao liberadas.
+- Se a carteira nao tiver saldo suficiente, a liberacao deve ser bloqueada com mensagem clara.
+- Saidas manuais e liberacoes de credito devem usar lock transacional no banco antes de checar saldo e gravar movimentacao.
+- A aba Carteira deve permitir entrada manual, saida manual, consulta do historico e exportacao CSV.
+- O painel pode ocultar/mostrar valores financeiros sensiveis no navegador.
+- Linha atrasada e destacada.
+- Pix pode ser copiado com um clique.
+- Detalhe do cliente pode ser impresso.
+- Relatorios exibem ultimas acoes administrativas registradas no banco.
+- Acoes criticas no painel devem usar modais proprios e feedback via toast; nao usar `window.prompt`, `window.confirm` ou `window.alert` nos fluxos principais.
+
+## 10. Autenticacao e seguranca
+
+- Login por senha unica de administrador.
+- Token de sessao com HMAC-SHA256.
+- Token valido pelo valor de `TOKEN_EXPIRACAO_HORAS` (padrao 8 horas).
+- Login possui rate limit persistido no banco em `login_rate_limits`, alem do limite rapido da rota.
+- Registros de rate limit de login com mais de 30 dias devem ser removidos automaticamente por cron.
+- Exclusoes exigem senha separada ou fallback para senha admin.
+- Senhas e tokens sao mascarados nos logs.
+- Rotas inexistentes em `/api` devem responder JSON 404, nunca o HTML do painel.
+- `/health` deve validar banco de dados, storage local e status do WhatsApp.
+- Headers HTTP de seguranca devem ser aplicados sem quebrar o painel React nem downloads de arquivos.
+- Configuracoes desconhecidas nao podem consultar automaticamente `process.env`; somente chaves definidas em `CONFIG_MAP` usam fallback de ambiente.
+- Telegram interno e opcional, restrito a `TELEGRAM_CHAT_ID`, e deve ser usado apenas para consultas/alertas administrativos.
+- O bot do Telegram deve aplicar rate limit simples por chat para evitar flood acidental de consultas ao banco.
+- O bot pode consultar status, carteira, operacoes, clientes, score baixo, inadimplencia, Pix, orcamentos, promessas, vendas e estoque.
+- O bot nao deve executar acoes destrutivas ou financeiras sem uma camada futura de confirmacao forte; pagamentos, liberacoes, exclusoes e alteracoes continuam no painel administrativo.
+
+## 11. Arquivos e persistencia
+
+- PDFs operacionais: `storage/`.
+- Contratos novos: `storage/contratos/`.
+- Orcamentos: `storage/orcamentos/`.
+- Cobrancas: `storage/cobranças/`.
+- Recibos: `storage/recibos/`.
+- Uploads: `uploads/`.
+- Logs: `logs/`.
+- Essas pastas devem entrar no backup, mas nao no GitHub.
+- Backup manual/agendavel do PostgreSQL usa `npm run backup:db`, gerando dumps em `backups/`.
+- A tabela `arquivos_pdf` registra cada PDF gerado com tipo, origem, cliente, caminho e data.
+- Pagamentos com recibo tambem devem preencher `pagamentos.caminho_pdf`.
+- A tabela `carteira_movimentacoes` registra entradas, saidas manuais e saidas automaticas por liberacao de credito.
+- O sistema nunca deve sobrescrever PDF existente; quando necessario, adiciona sufixo numerico.
+- Geradores Python de contrato, orcamento e recibo devem receber dados por arquivo temporario, mantendo compatibilidade com JSON direto apenas como fallback.
+
+## 12. Configuracoes operacionais
+
+### Credito
+
+- `CARTEIRA_OPERACIONAL`
+- `JUROS_PADRAO`
+- `JUROS_MINIMO`
+- `JUROS_MAXIMO`
+- `VALOR_MINIMO_EMPRESTIMO`
+- `VALOR_MAXIMO_EMPRESTIMO`
+- `PARCELAS_MINIMAS`
+- `PARCELAS_MAXIMAS`
+- `INTERVALO_PARCELAS_DIAS`
+- `ALLOW_MULTIPLE_ACTIVE_OPERATIONS`
+- `DIAS_PRIMEIRO_VENCIMENTO`
+
+### Score
+
+- `SCORE_INICIAL`
+- `SCORE_MINIMO`
+- `SCORE_MAXIMO`
+- `SCORE_LIMITE_BLOQUEADO`
+- `SCORE_LIMITE_RISCO_MEDIO`
+- `SCORE_PAGAMENTO_ANTECIPADO`
+- `SCORE_PAGAMENTO_EM_DIA`
+- `SCORE_ATRASO_ATE_3_DIAS`
+- `SCORE_ATRASO_4_A_7_DIAS`
+- `SCORE_ATRASO_ACIMA_7_DIAS`
+- `SCORE_PENALIDADE_INADIMPLENCIA`
+
+### Cobranca
+
+- `COBRANCA_HORA_MANHA`
+- `COBRANCA_HORA_TARDE`
+- `RENOVACAO_HORA`
+- `DIAS_INADIMPLENCIA_PENALIDADE`
+- `RENOVACAO_DIAS_APOS_QUITACAO`
+
+### Vendas
+
+- `JUROS_VENDA_PADRAO`
+- `VALOR_MINIMO_VENDA`
+
+### Pix e pagamento
+
+- `PIX_CHAVE`
+- `PIX_NOME`
+- `PIX_CIDADE`
+- `MERCADOPAGO_ATIVO`
+
+### WhatsApp
+
+- `WHATSAPP_TEMPLATE_LEMBRETE`
+- `WHATSAPP_TEMPLATE_VENCIMENTO_HOJE`
+- `WHATSAPP_TEMPLATE_PIX_MANUAL`
+- `WHATSAPP_TEMPLATE_ATRASO`
+- `WHATSAPP_TEMPLATE_CONFIRMACAO`
+- `WHATSAPP_TEMPLATE_RECIBO`
+- `WHATSAPP_TEMPLATE_RENOVACAO`
+- `WHATSAPP_TEMPLATE_PIX_GERADO`
+- `WHATSAPP_TEMPLATE_CONTRATO_AVISO`
+- `WHATSAPP_TEMPLATE_CONTRATO`
+- `WHATSAPP_TEMPLATE_ORCAMENTO`
+
+### Sistema
+
+- `NOME_EMPRESA`
+- `TOKEN_EXPIRACAO_HORAS`
+- `UPLOAD_TAMANHO_MAXIMO_MB`
+- `UPLOAD_TIPOS_PERMITIDOS`
+- `LOG_NIVEL`
+- `TIMEZONE`
+
+## 13. Pendencias recomendadas
+
+- Multiusuario com permissoes.
+- Ampliar cobertura de testes automatizados para services e controllers.
+- Adicionar auditoria detalhada para alteracoes feitas em configuracoes.
+- Separar as paginas restantes de `App.jsx` em arquivos dedicados.

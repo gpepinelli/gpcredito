@@ -6,6 +6,7 @@
 import sys
 import json
 import datetime
+import os
 from io import BytesIO
 
 from reportlab.lib.pagesizes import A4
@@ -17,11 +18,18 @@ from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table,
     TableStyle, HRFlowable, KeepTogether
 )
+from pdf_branding import draw_branding
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
 def fmt_moeda(valor):
     return f"R$ {float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+def carregar_dados(argumento):
+    if os.path.exists(argumento):
+        with open(argumento, "r", encoding="utf-8-sig") as arquivo:
+            return json.load(arquivo)
+    return json.loads(argumento)
 
 def fmt_data(iso_str):
     dt = datetime.datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
@@ -46,9 +54,9 @@ def status_parcela(status):
 
 # ─── Paleta ─────────────────────────────────────────────────────────────────
 
-NAVY    = colors.HexColor("#0f172a")
-TEAL    = colors.HexColor("#0d9488")
-TEAL_LT = colors.HexColor("#ccfbf1")
+NAVY    = colors.HexColor("#071A2B")
+TEAL    = colors.HexColor("#C9A24A")
+TEAL_LT = colors.HexColor("#F6ECD1")
 GRAY    = colors.HexColor("#64748b")
 GRAY_LT = colors.HexColor("#f8fafc")
 WHITE   = colors.white
@@ -131,7 +139,7 @@ def gerar(dados: dict):
     doc = SimpleDocTemplate(
         saida, pagesize=A4,
         rightMargin=MARGIN, leftMargin=MARGIN,
-        topMargin=MARGIN, bottomMargin=MARGIN,
+        topMargin=2.7 * cm, bottomMargin=MARGIN,
     )
 
     titulo_s, subtitulo_s, secao_s, corpo_s, rodape_s = estilos()
@@ -253,7 +261,11 @@ def gerar(dados: dict):
         rodape_s
     ))
 
-    doc.build(story)
+    doc.build(
+        story,
+        onFirstPage=lambda canvas, doc_obj: draw_branding(canvas, doc_obj, "Contrato"),
+        onLaterPages=lambda canvas, doc_obj: draw_branding(canvas, doc_obj, "Contrato"),
+    )
     print(f"PDF gerado: {saida}")
 
 
@@ -263,5 +275,5 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Uso: python3 gerar_contrato.py '<json>'", file=sys.stderr)
         sys.exit(1)
-    dados = json.loads(sys.argv[1])
+    dados = carregar_dados(sys.argv[1])
     gerar(dados)

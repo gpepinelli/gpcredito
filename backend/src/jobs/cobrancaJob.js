@@ -2,20 +2,43 @@
 // Cron Jobs - executam automaticamente todos os dias
 
 const cron = require('node-cron');
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../lib/prisma');
 const { calcularDiasAtraso } = require('../utils/calculadora');
 const whatsapp = require('../integrations/whatsapp');
 const emprestimoService = require('../services/emprestimoService');
+const orcamentoService = require('../services/orcamentoService');
 const scoreService = require('../services/scoreService');
+const pixCobrancaService = require('../services/pixCobrancaService');
+const loginRateLimitService = require('../services/loginRateLimitService');
+const config = require('../services/configuracaoService');
 const logger = require('../utils/logger');
 
-const prisma = new PrismaClient();
+const locks = {
+  vencimentos: false,
+  renovacoes: false,
+  orcamentos: false,
+  loginRateLimit: false,
+};
+
+async function executarComLock(chave, descricao, tarefa) {
+  if (locks[chave]) {
+    logger.warn(`[CRON] ${descricao} ignorado: execucao anterior ainda em andamento`);
+    return null;
+  }
+
+  locks[chave] = true;
+  try {
+    return await tarefa();
+  } finally {
+    locks[chave] = false;
+  }
+}
 
 /**
  * Verifica empréstimos pendentes e atrasados
  * Roda todo dia às 9h da manhã
  */
-async function verificarVencimentos() {
+async function verificarVencimentosInterno() {
   logger.info('⏰ [CRON] Iniciando verificação de vencimentos...');
 
   const hoje = new Date();
@@ -29,13 +52,27 @@ async function verificarVencimentos() {
     where: {
       status: { in: ['pendente', 'atrasado'] },
     },
-    include: { cliente: true },
+    include: { cliente: true, parcelas: { orderBy: { numero: 'asc' } } },
   });
 
   let lembretes = 0;
   let pixEnviados = 0;
   let cobrancasAtraso = 0;
   let marcadosAtrasados = 0;
+
+  const [diasPenalidade, mercadoPagoAtivo, pixAutomatico] = await Promise.all([
+    config.getConfigNumber('DIAS_INADIMPLENCIA_PENALIDADE'),
+    config.getConfigBoolean('MERCADOPAGO_ATIVO'),
+    config.getConfigBoolean('PIX_AUTOMATICO_VENCIMENTO'),
+  ]);
+
+  async function enviarPix(emp) {
+    if (mercadoPagoAtivo && pixAutomatico) {
+      const resultado = await pixCobrancaService.gerarEEnviar(emp);
+      return Boolean(resultado.enviado);
+    }
+    return whatsapp.enviarPixManual(emp.cliente, emp);
+  }
 
   for (const emp of emprestimos) {
     const diasAtraso = calcularDiasAtraso(emp.dataVencimento);
@@ -48,12 +85,12 @@ async function verificarVencimentos() {
       } else if (venceAmanha) {
         // Vence amanha: lembrete + Pix manual do credor
         await whatsapp.enviarLembrete(emp.cliente, emp);
-        if (await whatsapp.enviarPixManual(emp.cliente, emp)) pixEnviados++;
+        if (await enviarPix(emp)) pixEnviados++;
         lembretes++;
       } else if (diasAtraso === 0) {
         // Vence hoje: aviso + Pix manual do credor
         await whatsapp.enviarCobrancaHoje(emp.cliente, emp);
-        if (await whatsapp.enviarPixManual(emp.cliente, emp)) pixEnviados++;
+        if (await enviarPix(emp)) pixEnviados++;
       } else if (diasAtraso > 0) {
         // Atrasado → cobrança firme + marca como atrasado
         if (emp.status !== 'atrasado') {
@@ -64,11 +101,15 @@ async function verificarVencimentos() {
           marcadosAtrasados++;
         }
         await whatsapp.enviarCobrancaAtraso(emp.cliente, emp, diasAtraso);
-        if (await whatsapp.enviarPixManual(emp.cliente, emp)) pixEnviados++;
+        if (await enviarPix(emp)) pixEnviados++;
         cobrancasAtraso++;
 
-        if (diasAtraso === 8) {
+        if (diasAtraso >= diasPenalidade && !emp.scorePenalizadoInadimplenciaEm) {
           await scoreService.aplicarAlteracao(emp.clienteId, 'NAO_PAGAMENTO');
+          await prisma.emprestimo.update({
+            where: { id: emp.id },
+            data: { scorePenalizadoInadimplenciaEm: new Date() },
+          });
           logger.warn('🚨 Score penalizado por inadimplência', { clienteId: emp.clienteId, diasAtraso });
         }
       }
@@ -82,7 +123,7 @@ async function verificarVencimentos() {
   logger.info('✅ [CRON] Verificação concluída', { lembretes, pixEnviados, cobrancasAtraso, marcadosAtrasados, total: emprestimos.length });
 }
 
-async function verificarRenovacoes() {
+async function verificarRenovacoesInterno() {
   logger.info('[CRON] Iniciando verificacao de renovacoes...');
   try {
     const resultado = await emprestimoService.processarRenovacoesPendentes();
@@ -92,11 +133,48 @@ async function verificarRenovacoes() {
   }
 }
 
-function iniciarJobs() {
-  cron.schedule('0 9 * * *', verificarVencimentos, { timezone: 'America/Sao_Paulo' });
-  cron.schedule('0 18 * * *', verificarVencimentos, { timezone: 'America/Sao_Paulo' });
-  cron.schedule('30 9 * * *', verificarRenovacoes, { timezone: 'America/Sao_Paulo' });
+async function expirarOrcamentosInterno() {
+  try {
+    await orcamentoService.expirarPendentes();
+  } catch (error) {
+    logger.error('Erro ao expirar orcamentos', { error: error.message });
+  }
+}
+
+async function limparLoginRateLimitsInterno() {
+  try {
+    const resultado = await loginRateLimitService.limparAntigos();
+    if (resultado.count > 0) {
+      logger.info('[CRON] Tentativas antigas de login removidas', { total: resultado.count });
+    }
+  } catch (error) {
+    logger.error('Erro ao limpar tentativas antigas de login', { error: error.message });
+  }
+}
+
+const verificarVencimentos = () => executarComLock('vencimentos', 'Verificacao de vencimentos', verificarVencimentosInterno);
+const verificarRenovacoes = () => executarComLock('renovacoes', 'Verificacao de renovacoes', verificarRenovacoesInterno);
+const expirarOrcamentos = () => executarComLock('orcamentos', 'Expiracao de orcamentos', expirarOrcamentosInterno);
+const limparLoginRateLimits = () => executarComLock('loginRateLimit', 'Limpeza de rate limits de login', limparLoginRateLimitsInterno);
+
+function cronExpression(hora = '09:00') {
+  const [hh, mm] = String(hora).split(':').map(Number);
+  return `${mm || 0} ${hh || 0} * * *`;
+}
+
+async function iniciarJobs() {
+  const [horaManha, horaTarde, horaRenovacao, timezone] = await Promise.all([
+    config.getConfig('COBRANCA_HORA_MANHA'),
+    config.getConfig('COBRANCA_HORA_TARDE'),
+    config.getConfig('RENOVACAO_HORA'),
+    config.getConfig('TIMEZONE'),
+  ]);
+  cron.schedule(cronExpression(horaManha), verificarVencimentos, { timezone });
+  cron.schedule(cronExpression(horaTarde), verificarVencimentos, { timezone });
+  cron.schedule(cronExpression(horaRenovacao), verificarRenovacoes, { timezone });
+  cron.schedule('0 * * * *', expirarOrcamentos, { timezone });
+  cron.schedule('30 3 * * *', limparLoginRateLimits, { timezone });
   logger.info('✅ Cron jobs registrados: cobranças às 09:00 e 18:00; renovações às 09:30 (Brasília)');
 }
 
-module.exports = { iniciarJobs, verificarVencimentos, verificarRenovacoes };
+module.exports = { iniciarJobs, verificarVencimentos, verificarRenovacoes, expirarOrcamentos, limparLoginRateLimits };

@@ -21,10 +21,8 @@ class EmprestimoController {
 
   async listar(req, res) {
     try {
-      const { status } = req.query;
-      const filtros = status ? { status } : {};
-      const emprestimos = await emprestimoService.listar(filtros);
-      return res.json({ sucesso: true, emprestimos, total: emprestimos.length });
+      const resultado = await emprestimoService.listar(req.query);
+      return res.json({ sucesso: true, ...resultado });
     } catch (error) {
       logger.error('Erro ao listar empréstimos', { error: error.message });
       return res.status(500).json({ sucesso: false, mensagem: 'Erro interno do servidor' });
@@ -76,6 +74,88 @@ class EmprestimoController {
     }
   }
 
+  async alertas(req, res) {
+    try {
+      const alertas = await emprestimoService.alertasDoDia();
+      return res.json({ sucesso: true, alertas });
+    } catch (error) {
+      return res.status(500).json({ sucesso: false, mensagem: 'Erro interno do servidor' });
+    }
+  }
+
+  async painelFinanceiro(req, res) {
+    try {
+      const financeiro = await emprestimoService.painelFinanceiro();
+      return res.json({ sucesso: true, financeiro });
+    } catch (error) {
+      logger.error('Erro ao carregar painel financeiro', { error: error.message });
+      return res.status(500).json({ sucesso: false, mensagem: 'Erro interno do servidor' });
+    }
+  }
+
+  async aceitarManual(req, res) {
+    try {
+      const emprestimo = await emprestimoService.aceitarManual(req.params.id);
+      return res.json({ sucesso: true, emprestimo });
+    } catch (error) {
+      return res.status(500).json({ sucesso: false, mensagem: error.message });
+    }
+  }
+
+  async liberarDinheiro(req, res) {
+    try {
+      const emprestimo = await emprestimoService.liberarDinheiro(req.params.id);
+      return res.json({ sucesso: true, emprestimo });
+    } catch (error) {
+      return res.status(500).json({ sucesso: false, mensagem: error.message });
+    }
+  }
+
+  async reenviarContrato(req, res) {
+    try {
+      const resultado = await emprestimoService.reenviarContrato(req.params.id);
+      return res.json({ sucesso: true, ...resultado });
+    } catch (error) {
+      return res.status(500).json({ sucesso: false, mensagem: error.message });
+    }
+  }
+
+  async reenviarPix(req, res) {
+    try {
+      const resultado = await emprestimoService.reenviarPix(req.params.id);
+      return res.json({ sucesso: true, ...resultado });
+    } catch (error) {
+      return res.status(500).json({ sucesso: false, mensagem: error.message });
+    }
+  }
+
+  async atualizarObservacao(req, res) {
+    try {
+      const emprestimo = await emprestimoService.atualizarObservacao(req.params.id, req.body.observacao);
+      return res.json({ sucesso: true, emprestimo });
+    } catch (error) {
+      return res.status(500).json({ sucesso: false, mensagem: error.message });
+    }
+  }
+
+  async renegociarPrazo(req, res) {
+    try {
+      const emprestimo = await emprestimoService.renegociarPrazo(req.params.id, req.body.dataVencimento, req.body.observacao);
+      return res.json({ sucesso: true, emprestimo });
+    } catch (error) {
+      return res.status(400).json({ sucesso: false, mensagem: error.message });
+    }
+  }
+
+  async cobrancaLote(req, res) {
+    try {
+      const resultado = await emprestimoService.enviarCobrancaLote(req.body.ids || []);
+      return res.json({ sucesso: true, ...resultado });
+    } catch (error) {
+      return res.status(400).json({ sucesso: false, mensagem: error.message });
+    }
+  }
+
   async confirmarPagamentoManual(req, res) {
     try {
       const { id } = req.params;
@@ -95,6 +175,15 @@ class EmprestimoController {
       return res.json({ sucesso: true, pagamento });
     } catch (error) {
       return res.status(500).json({ sucesso: false, mensagem: error.message });
+    }
+  }
+
+  async reenviarRecibo(req, res) {
+    try {
+      const resultado = await emprestimoService.reenviarRecibo(req.params.id);
+      return res.json({ sucesso: true, ...resultado });
+    } catch (error) {
+      return res.status(400).json({ sucesso: false, mensagem: error.message });
     }
   }
 }

@@ -18,6 +18,7 @@ logs/
 whatsapp-session/
 backend/whatsapp-session/
 contratos/
+storage/
 uploads/*
 !uploads/.gitkeep
 *.log

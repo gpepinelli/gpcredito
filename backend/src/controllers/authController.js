@@ -1,31 +1,20 @@
-const { criarToken, senhaAdminValida } = require('../utils/auth');
+const { criarTokenAsync, senhaAdminValida } = require('../utils/auth');
 const logger = require('../utils/logger');
+const loginRateLimit = require('../services/loginRateLimitService');
 
-const tentativasLogin = new Map();
-const MAX_TENTATIVAS = 5;
-const JANELA_TENTATIVAS_MS = 15 * 60 * 1000;
-
-function obterRegistro(ip) {
-  const agora = Date.now();
-  const registro = tentativasLogin.get(ip);
-
-  if (!registro || registro.expiraEm <= agora) {
-    const novoRegistro = { total: 0, expiraEm: agora + JANELA_TENTATIVAS_MS };
-    tentativasLogin.set(ip, novoRegistro);
-    return novoRegistro;
-  }
-
-  return registro;
+function chaveRateLimit(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return forwarded || req.ip || req.socket?.remoteAddress || 'desconhecido';
 }
 
 class AuthController {
   async login(req, res) {
     try {
       const { senha } = req.body;
-      const ip = req.ip;
-      const registro = obterRegistro(ip);
+      const ip = chaveRateLimit(req);
+      const bloqueio = await loginRateLimit.verificar(ip);
 
-      if (registro.total >= MAX_TENTATIVAS) {
+      if (bloqueio.bloqueado) {
         return res.status(429).json({
           sucesso: false,
           mensagem: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
@@ -33,16 +22,16 @@ class AuthController {
       }
 
       if (!senhaAdminValida(senha)) {
-        registro.total += 1;
+        await loginRateLimit.registrarFalha(ip);
         logger.warn('Tentativa de login admin recusada', { ip });
         return res.status(401).json({ sucesso: false, mensagem: 'Senha invalida' });
       }
 
-      tentativasLogin.delete(ip);
+      await loginRateLimit.registrarSucesso(ip);
 
       return res.json({
         sucesso: true,
-        token: criarToken(),
+        token: await criarTokenAsync(),
       });
     } catch (error) {
       logger.error('Erro ao autenticar administrador', { error: error.message });
